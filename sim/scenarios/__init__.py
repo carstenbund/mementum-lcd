@@ -21,6 +21,7 @@ NAMES = (
     "leader_change",
     "clock_jitter",
     "fanout_scale",
+    "mixed_renderers",
 )
 
 

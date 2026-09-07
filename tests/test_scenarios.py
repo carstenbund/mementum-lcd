@@ -12,11 +12,18 @@ broke rather than "assert False".
 
 import pytest
 
+from mementum_node.players.lvgl import is_available
 from sim import scenarios
+
+#: Scenarios that need the C player built. The rest of the suite must keep
+#: running on a machine with no C toolchain.
+NEEDS_C_PLAYER = {"mixed_renderers"}
 
 
 @pytest.mark.parametrize("name", scenarios.NAMES)
 def test_scenario(name):
+    if name in NEEDS_C_PLAYER and not is_available():
+        pytest.skip("C player not built; run: make -C poc/host-player -j4 lib")
     scenarios.run(name).assert_passed()
 
 
@@ -67,3 +74,16 @@ def test_fanout_curve_is_monotonic_and_bounded():
     assert [curve[s] for s in sizes] == sorted(curve[s] for s in sizes)
     # Concurrent fan-out to the design bound must leave DISPLAY_LEAD_MS room.
     assert curve[max(sizes)] < result.metrics["inherited_display_lead_ms"] / 4
+
+
+@pytest.mark.skipif(not is_available(), reason="C player not built")
+def test_a_mixed_swarm_survives_the_failure_scenarios():
+    """Two renderer implementations, one scene, and the protocol being abused.
+
+    Within a renderer family frames stay byte-identical; across families they
+    stay the same picture. If that holds through a missed PLAY, a late join and
+    a leader change, then what is being tested is the scene semantics rather
+    than one renderer's habits."""
+    result = scenarios.run("mixed_renderers").assert_passed()
+    families = set(result.metrics["renderers"].values())
+    assert families == {"python", "lvgl"}, families

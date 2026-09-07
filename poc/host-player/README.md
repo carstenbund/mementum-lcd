@@ -10,8 +10,12 @@ diff.
 
 ```bash
 ./fetch-lvgl.sh                 # pinned LVGL v9.5.0; ThorVG ships inside it
-make -j4 probe                  # ~500 C files plus ThorVG's C++; a few minutes
+./fetch-cjson.sh                # pinned cJSON, the parser ESP-IDF also ships
+make -j4                        # ~530 objects, about 10 seconds
 ```
+
+`make lib` builds `libmementum_player.so` — the player itself; `make probe` and
+`make subpath` build the two experiments.
 
 The only tools required are `gcc`, `g++` and `make`. LVGL is configured by
 [`lv_conf.h`](lv_conf.h): 32-bit colour, software renderer, one draw unit

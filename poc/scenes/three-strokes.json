@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "id": 43,
+  "name": "three-strokes",
+  "width": 240,
+  "height": 120,
+  "fit": "contain",
+  "duration": 3000,
+  "layers": [
+    { "id": "background", "z": 0, "objects": [
+      { "type": "rect", "id": "bg", "x": 0, "y": 0, "w": 240, "h": 120, "fill": "#101014" } ] },
+    { "id": "writing", "z": 10, "objects": [
+      { "type": "path", "id": "strokes",
+        "d": "M 20 30 L 120 30 M 20 55 L 120 55 M 20 80 L 120 80",
+        "stroke": "#e8e8f0", "stroke_width": 3, "progress": 0 } ] }
+  ],
+  "animations": [
+    { "target": "strokes", "property": "progress", "start": 0,
+      "duration": 3000, "from": 0, "to": 1, "easing": "linear" }
+  ]
+}

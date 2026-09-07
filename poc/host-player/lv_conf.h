@@ -32,6 +32,16 @@
 
 #define LV_USE_CANVAS               1
 #define LV_USE_LABEL                1
+
+/* Font assets. Montserrat stands in until the asset plane carries preprocessed
+ * fonts addressed by content hash (proposal §9, §18); text is consequently the
+ * one part of a scene where this player and the Python reference differ by
+ * design. */
+#define LV_FONT_MONTSERRAT_14       1
+#define LV_FONT_MONTSERRAT_16       1
+#define LV_FONT_MONTSERRAT_20       1
+#define LV_FONT_MONTSERRAT_24       1
+#define LV_FONT_MONTSERRAT_28       1
 #define LV_USE_LOG                  1
 #define LV_LOG_LEVEL                LV_LOG_LEVEL_WARN
 #define LV_LOG_PRINTF               1

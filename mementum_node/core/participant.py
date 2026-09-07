@@ -26,7 +26,6 @@ from typing import Any
 
 from .cache import AssetCache, asset_hash
 from .clock import CristianClock
-from .evaluator import evaluate
 from .framebuffer import Frame
 from .pacer import DisplayPacer
 from .protocol import (
@@ -43,7 +42,7 @@ from .protocol import (
     Stop,
     Sync,
 )
-from .renderer import render_scene
+from .render_backend import ReferenceRenderer, Renderer
 from .scene import Scene, parse_scene
 from .sink import Sink
 from .transport import TransportError
@@ -67,6 +66,7 @@ class ParticipantCore:
         cache: AssetCache | None = None,
         pacer=None,
         idle_policy: str = "blank",
+        renderer: Renderer | None = None,
     ):
         if idle_policy not in IDLE_POLICIES:
             raise ValueError(f"unknown idle policy: {idle_policy!r}")
@@ -77,6 +77,9 @@ class ParticipantCore:
         self.cache = cache if cache is not None else AssetCache()
         self.pacer = pacer if pacer is not None else DisplayPacer(30.0)
         self.idle_policy = idle_policy
+        # The picture comes from *a* renderer, not *the* renderer: the Python
+        # reference and the C/LVGL player are peers here (§3.7).
+        self.renderer = renderer if renderer is not None else ReferenceRenderer()
 
         self.state = "idle"
         self.schedule: Schedule = Schedule()
@@ -221,7 +224,8 @@ class ParticipantCore:
         self.state = "loading"
         if self.cache.holds_scene(schedule.scene_id, schedule.scene_hash):
             payload = self.cache.get(schedule.scene_hash)
-            self.scene = parse_scene(json.loads(payload.decode("utf-8")))
+            if not self._bind(payload):
+                return
             self.state = "playing"
             return
         try:
@@ -265,7 +269,8 @@ class ParticipantCore:
             self._fail_visibly(f"scene {schedule.scene_id} hash mismatch after pull")
             return
         self.cache.bind_scene(schedule.scene_id, schedule.scene_hash)
-        self.scene = parse_scene(json.loads(payload.decode("utf-8")))
+        if not self._bind(payload):
+            return
         self.state = "playing"
         try:
             self.transport.request(
@@ -273,6 +278,26 @@ class ParticipantCore:
             )
         except TransportError:
             pass  # READY is an optimisation for scheduling, not a requirement
+
+    def _bind(self, payload: bytes) -> bool:
+        """Parse the package and hand it to the renderer.
+
+        A renderer that refuses the scene is a node that cannot show it, which
+        must fail visibly rather than sit dark and in sync with nothing (§18).
+        """
+        scene = parse_scene(json.loads(payload.decode("utf-8")))
+        try:
+            self.renderer.bind(
+                payload,
+                scene,
+                self.descriptor.display.width,
+                self.descriptor.display.height,
+            )
+        except Exception as exc:
+            self._fail_visibly(f"renderer refused the scene: {exc}")
+            return False
+        self.scene = scene
+        return True
 
     def _stop(self, leader_epoch: int, reason: str = "") -> None:
         self.leader_epoch = max(self.leader_epoch, leader_epoch)
@@ -319,13 +344,9 @@ class ParticipantCore:
         self.sink.present(frame, scene_time)
 
     def compose(self, scene_time: float) -> Frame:
-        """Evaluate and composite at an arbitrary scene time. Pure with respect
-        to the node: calling it does not disturb playback, which is what makes
-        capture and cross-node buffer comparison safe to do at any moment."""
+        """The picture at an arbitrary scene time. Pure with respect to the
+        node: calling it does not disturb playback, which is what makes capture
+        and cross-node buffer comparison safe to do at any moment."""
         if self.scene is None:
             raise RuntimeError(f"node {self.node_id} holds no scene")
-        return render_scene(
-            evaluate(self.scene, scene_time),
-            self.descriptor.display.width,
-            self.descriptor.display.height,
-        )
+        return self.renderer.render(scene_time)

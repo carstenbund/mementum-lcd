@@ -19,6 +19,7 @@ from mementum_node.core.framebuffer import Frame
 from mementum_node.core.pacer import DisplayPacer
 from mementum_node.core.participant import ParticipantCore
 from mementum_node.core.protocol import Capabilities, Display, NodeDescriptor
+from mementum_node.core.render_backend import ReferenceRenderer, Renderer
 from mementum_node.core.sink import HeadlessSink, NullSink
 
 from .clock import NodeTimeSource, SimulationClock
@@ -48,6 +49,7 @@ class SimNode:
         seed: int = 0,
         idle_policy: str = "blank",
         cache: AssetCache | None = None,
+        renderer: Renderer | None = None,
     ):
         self.node_id = node_id
         self.master = master
@@ -58,6 +60,11 @@ class SimNode:
         self.transport = bus.client(node_id, self.time_source)
         self.clock = CristianClock(self.time_source, self.transport.time_query)
         self.sink = HeadlessSink() if compositing else NullSink()
+
+        # Not a substitution -- a choice. A node runs the Python reference or
+        # the C/LVGL player exactly as a real one would, and the swarm can mix
+        # them (§3.7).
+        self.renderer = renderer if renderer is not None else ReferenceRenderer()
 
         # -- everything below this line is the real thing ---------------
         descriptor = NodeDescriptor(
@@ -75,6 +82,7 @@ class SimNode:
             cache=cache,
             pacer=DisplayPacer(fps),
             idle_policy=idle_policy,
+            renderer=self.renderer,
         )
         bus.attach(node_id, self)
 
@@ -137,5 +145,12 @@ class SimNode:
         frame = self.core.last_frame
         return frame.hash() if frame is not None else None
 
+    @property
+    def renderer_name(self) -> str:
+        return getattr(self.renderer, "name", "unknown")
+
     def __repr__(self) -> str:
-        return f"<SimNode {self.node_id} {self.state} frames={self.core.frames_presented}>"
+        return (
+            f"<SimNode {self.node_id} {self.state} renderer={self.renderer_name} "
+            f"frames={self.core.frames_presented}>"
+        )

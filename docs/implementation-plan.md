@@ -8,9 +8,14 @@ proposal.
 **Status.** Phase 0c is built: the participant core (`mementum_node/core/`)
 and the simulation harness (`sim/`) exist, the six scenarios pass, and the
 Phase 0c gate runs in CI without hardware — see
-[`phase0c-report.md`](phase0c-report.md). Phases 0 and 0b are not started, so
-every number recorded so far is a design property and no hardware gate has been
-satisfied.
+[`phase0c-report.md`](phase0c-report.md). Phase 0's host bring-up (§0.3 steps
+1–3) is done and **R1 is closed** — see
+[`phase0-host-protocol.md`](phase0-host-protocol.md). The device's player now
+compiles for the host and runs inside the simulator alongside the Python
+reference, which closes **R6** — see
+[`phase0-c-player-protocol.md`](phase0-c-player-protocol.md). Phase 0b is not started,
+no board exists yet, and every number recorded so far is a design property: no
+hardware gate has been satisfied.
 
 ---
 
@@ -751,7 +756,7 @@ Each justified by a scene that needs it.
 
 | # | Risk | Detect | Response |
 |---|---|---|---|
-| R1 | ThorVG/LVGL exposes no usable stroke-progress mechanism | Phase 0 task 0.3.4 | Compile-time path splitting; `progress` becomes a compile-time slice — changes the IR, must be reported before Phase 1 |
+| R1 | ~~ThorVG/LVGL exposes no usable stroke-progress mechanism~~ **CLOSED** | Measured on the host, LVGL v9.5.0 — [`phase0-host-protocol.md`](phase0-host-protocol.md) | Not realised. `lv_draw_vector_dsc_set_stroke_dash` gives a runtime reveal tracking arc length to within 1 %; `progress` stays a runtime property and the IR is unaffected ([decision 0004](decisions/0004-stroke-progress.md)). The path-splitting fallback is not needed. Follow-on: the player computes path length itself, so the composer should put the length in the IR — simpler, and it saves the ESP32 a flattening pass |
 | R2 | ESP32-S3 cannot hold 30 fps with vector + text | Phase 0 gate | Reduce scene complexity, RGB565 only, or reconsider the runtime. Kill criterion |
 | R3 | PSRAM bandwidth, not CPU, is the ceiling | 1 % low fps with large draw buffers | Smaller draw buffers, content-sized object buffers (§16), RGB565 |
 | R4 | Clock skew exceeds 35 ms on a loaded soft AP | Phase 0 sync test | Shorter heartbeat sync interval; more Cristian samples; if it persists, revisit the budget with evidence |

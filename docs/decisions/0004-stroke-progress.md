@@ -44,16 +44,19 @@ The reveal is a leading prefix by arc length, matching the semantics
 
 ## Consequences
 
-* **Path length must be computed by the player.** Neither LVGL nor ThorVG
-  exposes a path-length query, so flattening and arc-length accumulation are
-  the player's job — and the flattening rule therefore becomes part of the
-  contract, because two players that flatten differently will reveal at
-  slightly different rates. Phase 1 must specify it.
+* **Somebody has to measure the path.** Neither LVGL nor ThorVG exposes a
+  path-length query. Two players that flatten differently measure lengths
+  0.02 per cent apart, which is invisible — but the composer can just put the
+  length in the scene and save the ESP32 the work. Simpler, not stricter.
 * `progress` semantics in the IR are "fraction of total arc length", not
   "fraction of segments" and not "fraction of time".
-* Subpaths are an open detail: the probe uses a single-subpath signature. A
-  multi-subpath `progress` needs a defined rule (concatenated length, or
-  per-subpath) before Phase 1.
+* **The dash restarts at every subpath.** Measured in `probe_subpath.c`: three
+  separated strokes with one dash pattern all grow together instead of in
+  sequence. Handwriting needs them sequential, so the player must draw
+  completed subpaths plain, dash only the one in progress, and skip the rest —
+  which needs per-subpath lengths in the scene.
+* **At `progress >= 1`, drop the dash.** Otherwise a declared length slightly
+  short of the renderer's own leaves the signature permanently unfinished.
 * **This is a host result.** The dash reveal is proven to *exist and be
   correct*; whether it is affordable at 30 fps on an ESP32-S3 is Phase 0's
   question and untouched by this decision (R2, R3).

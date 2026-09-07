@@ -24,11 +24,15 @@ from mementum_node.core.framebuffer import Frame
 
 __all__ = [
     "FrameDiff",
+    "InkReport",
     "SkewReport",
     "assert_identical_at",
+    "assert_looks_the_same",
     "diff_frames",
     "diff_image",
     "hashes_at",
+    "ink",
+    "looks_the_same",
     "skew_report",
 ]
 
@@ -185,3 +189,93 @@ def skew_report(nodes: Iterable) -> SkewReport:
             times[node.node_id] = scene_time
     reference = next(iter(times), "")
     return SkewReport(times, reference)
+
+
+# -- comparing *different* renderers ---------------------------------------
+#
+# Exact equality is available only between two instances of the same renderer.
+# Across renderers -- the Python reference against C/LVGL/ThorVG -- antialiasing
+# and glyph shapes legitimately differ, and per-pixel comparison says nothing
+# useful. What matters is whether it is still the same picture, which is a
+# question about where the ink is, not about which pixels carry it.
+#
+# The thresholds below are deliberately loose. This is handwriting that appears
+# and is gone in a few seconds; the standard is whether someone watching would
+# notice, not whether a difference is detectable.
+
+#: How much total ink may differ, as a fraction.
+INK_TOLERANCE = 0.05
+#: How far the centre of the ink may move, in pixels.
+CENTROID_TOLERANCE = 1.0
+
+
+@dataclass(frozen=True)
+class InkReport:
+    """Where the drawn stuff is: how much, and centred where."""
+
+    mass: float
+    centroid_x: float
+    centroid_y: float
+
+    def __str__(self) -> str:
+        return (
+            f"ink {self.mass / 1000:.1f}k at ({self.centroid_x:.2f}, {self.centroid_y:.2f})"
+        )
+
+
+def ink(frame: Frame, background: tuple[int, int, int, int] | None = None) -> InkReport:
+    """Total luminance above the background, and its centre of mass.
+
+    ``background`` defaults to the frame's top-left pixel, which is the
+    background in every scene we draw. Cheap, and good enough for a comparison
+    whose thresholds are measured in whole pixels.
+    """
+    if background is None:
+        background = frame.get(0, 0)
+    base = (background[0] * 299 + background[1] * 587 + background[2] * 114) // 1000
+
+    total = cx = cy = 0.0
+    data = frame.data
+    for y in range(frame.height):
+        row = y * frame.width
+        for x in range(frame.width):
+            i = (row + x) * 4
+            value = (data[i] * 299 + data[i + 1] * 587 + data[i + 2] * 114) // 1000 - base
+            if value > 8:
+                total += value
+                cx += x * value
+                cy += y * value
+    if total <= 0:
+        return InkReport(0.0, 0.0, 0.0)
+    return InkReport(total, cx / total, cy / total)
+
+
+def looks_the_same(
+    a: Frame,
+    b: Frame,
+    ink_tolerance: float = INK_TOLERANCE,
+    centroid_tolerance: float = CENTROID_TOLERANCE,
+) -> tuple[bool, str]:
+    """Are these two frames the same picture, drawn by different renderers?"""
+    ink_a, ink_b = ink(a), ink(b)
+    if ink_a.mass <= 0.0 and ink_b.mass <= 0.0:
+        return True, "both frames are empty"
+    if ink_a.mass <= 0.0 or ink_b.mass <= 0.0:
+        return False, f"one frame is empty: {ink_a} vs {ink_b}"
+
+    mass_delta = abs(ink_a.mass - ink_b.mass) / max(ink_a.mass, ink_b.mass)
+    centroid_delta = max(
+        abs(ink_a.centroid_x - ink_b.centroid_x), abs(ink_a.centroid_y - ink_b.centroid_y)
+    )
+    detail = (
+        f"ink {mass_delta * 100:.2f}% apart, centroid {centroid_delta:.2f} px apart "
+        f"({ink_a} vs {ink_b})"
+    )
+    return (mass_delta <= ink_tolerance and centroid_delta <= centroid_tolerance), detail
+
+
+def assert_looks_the_same(a: Frame, b: Frame, context: str = "") -> str:
+    same, detail = looks_the_same(a, b)
+    if not same:
+        raise AssertionError(f"frames are not the same picture{f' ({context})' if context else ''}: {detail}")
+    return detail
