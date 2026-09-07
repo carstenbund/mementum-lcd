@@ -1136,4 +1136,7 @@ Scene → LVGL/ThorVG/LCD
 
 Together these produce a reusable system for synchronized, fluid, vector-capable displays without tying the composition language either to DRM or to ESP32 hardware.
 
-I’d make the next document a **concrete v1 technical specification for the Scene IR/package format**, because that boundary determines whether `drm_composer`, Linux and the ESP32 runtime actually remain independently reusable.
+references: 
+
+Full stack/Linux, https://github.com/carstenbund/drm_stack 
+Momentum-led, https://github.com/carstenbund/mementum-led 
