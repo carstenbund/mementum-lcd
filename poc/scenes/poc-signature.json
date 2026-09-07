@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "id": 42,
+  "name": "poc-signature",
+  "width": 480,
+  "height": 320,
+  "fit": "contain",
+  "duration": 4200,
+  "layers": [
+    {
+      "id": "background",
+      "z": 0,
+      "objects": [
+        {
+          "type": "rect",
+          "id": "bg",
+          "x": 0,
+          "y": 0,
+          "w": 480,
+          "h": 320,
+          "fill": "#101014"
+        }
+      ]
+    },
+    {
+      "id": "writing",
+      "z": 10,
+      "objects": [
+        {
+          "type": "path",
+          "id": "signature",
+          "d": "M 40 200 C 60 140 90 130 105 175 C 120 220 100 252 88 236 C 76 220 110 180 150 176 C 190 172 210 200 200 220 C 190 240 170 230 180 205 C 190 180 230 164 260 176 C 290 188 284 216 270 220 C 256 224 250 204 266 190 C 282 176 320 170 344 186 C 368 202 354 236 340 226 C 326 216 350 164 400 160 C 420 158 436 166 446 180",
+          "stroke": "#e8e8f0",
+          "stroke_width": 3,
+          "progress": 0
+        },
+        {
+          "type": "text",
+          "id": "caption",
+          "content": "mementum",
+          "x": 40,
+          "y": 250,
+          "font_id": "mementum-sans-24",
+          "color": "#8890a0",
+          "opacity": 0
+        }
+      ]
+    }
+  ],
+  "animations": [
+    {
+      "target": "signature",
+      "property": "progress",
+      "start": 0,
+      "duration": 4200,
+      "from": 0,
+      "to": 1,
+      "easing": "ease-in-out"
+    },
+    {
+      "target": "caption",
+      "property": "opacity",
+      "start": 3000,
+      "duration": 800,
+      "from": 0,
+      "to": 1,
+      "easing": "linear"
+    }
+  ]
+}

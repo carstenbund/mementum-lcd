@@ -1,0 +1,3 @@
+# Phase 0c harness. The core and the simulator are stdlib-only by design:
+# nothing here is imported by mementum_node/ or sim/ at runtime.
+pytest==9.1.1
