@@ -18,6 +18,7 @@ import argparse
 import math
 import os
 
+from mementum_node.core.font5x7 import ADVANCE, CELL_H
 from mementum_node.core.framebuffer import Frame
 from mementum_node.core.png import write_png
 from mementum_node.core.renderer import draw_text
@@ -63,13 +64,22 @@ def mosaic(
         h = max(1, int(frame.height * scale))
         out.fill_rect(x, y, cell_w, cell_h, _TILE_BG)
         out.blit(frame.scaled(w, h), x + (cell_w - w) // 2, y + (cell_h - h) // 2)
-        draw_text(out, label, x + 1, y + cell_h + 3, label_height - 5, _LABEL)
+        size = label_height - 5
+        draw_text(out, _fit(label, cell_w, size), x + 1, y + cell_h + 3, size, _LABEL)
     return out
+
+
+def _fit(label: str, cell_w: int, size: int) -> str:
+    """Truncate a tile label to its cell. A label that runs into the next tile
+    is worse than no label."""
+    per_char = ADVANCE * (size / CELL_H)
+    limit = max(4, int((cell_w - 2) / per_char))
+    return label if len(label) <= limit else label[: limit - 1] + "~"
 
 
 def _label(node, scene_time: float | None) -> str:
     display = node.core.descriptor.display
-    position = "--" if scene_time is None else f"{scene_time:7.1f}ms"
+    position = "--" if scene_time is None else f"{scene_time:.0f}ms"
     return f"{node.node_id} {display.width}x{display.height} {position} {node.state}"
 
 
@@ -94,6 +104,30 @@ def wall_at(nodes, scene_time: float, columns: int | None = None, tile_width: in
     return mosaic(tiles, columns, tile_width)
 
 
+MIXED_DISPLAYS = (
+    ("esp32-a", "esp32-s3", 480, 320, "rgb565"),
+    ("esp32-b", "esp32-s3", 320, 240, "rgb565"),
+    ("pi-lounge", "raspberry-pi", 1920, 1080, "argb8888"),
+    ("pi-projector", "raspberry-pi", 1280, 800, "argb8888"),
+)
+
+
+def _mixed_harness():
+    """A heterogeneous installation: 480x320 beside 1920x1080 beside a
+    projector. The wall is how the design-canvas ``fit`` policy (§6) gets
+    checked across a set like this -- by looking at it."""
+    from mementum_node.core.protocol import Display
+
+    from .harness import Harness
+
+    harness = Harness()
+    for node_id, device, width, height, fmt in MIXED_DISPLAYS:
+        harness.add_node(node_id, device=device, display=Display(width, height, fmt))
+    harness.play(42)
+    harness.advance(harness.sequencer.lead_ms + 3000)
+    return harness
+
+
 def _main(argv=None) -> int:
     from . import scenarios
 
@@ -105,10 +139,15 @@ def _main(argv=None) -> int:
     parser.add_argument(
         "--at", type=float, default=None, help="scene time in ms (default: live frames)"
     )
+    parser.add_argument(
+        "--mixed",
+        action="store_true",
+        help="ignore --scenario and build a heterogeneous set of displays instead",
+    )
     args = parser.parse_args(argv)
 
-    result = scenarios.run(args.scenario)
-    nodes = [n for n in result.harness.nodes if n.sink.wants_pixels]
+    harness = _mixed_harness() if args.mixed else scenarios.run(args.scenario).harness
+    nodes = [n for n in harness.nodes if n.sink.wants_pixels]
     frame = (
         wall_live(nodes, args.columns, args.tile_width)
         if args.at is None

@@ -28,30 +28,30 @@ _BACKGROUND = (0, 0, 0, 255)
 class Viewport:
     """Maps design-canvas coordinates onto a node's display (``fit`` policy)."""
 
-    __slots__ = ("scale", "offset_x", "offset_y", "width", "height")
+    __slots__ = ("scale_x", "scale_y", "offset_x", "offset_y", "width", "height")
 
     def __init__(self, scene_w: int, scene_h: int, out_w: int, out_h: int, fit: str = "contain"):
         self.width, self.height = out_w, out_h
-        if fit == "fill":
-            self.scale = 1.0
-            self.offset_x = self.offset_y = 0.0
-            if (scene_w, scene_h) != (out_w, out_h):
-                # Non-uniform scaling is deliberately not supported in v1.
-                self.scale = min(out_w / scene_w, out_h / scene_h)
-        elif fit in ("contain", "cover"):
-            sx, sy = out_w / scene_w, out_h / scene_h
-            self.scale = min(sx, sy) if fit == "contain" else max(sx, sy)
+        sx, sy = out_w / scene_w, out_h / scene_h
+        if fit == "contain":
+            self.scale_x = self.scale_y = min(sx, sy)
+        elif fit == "cover":
+            self.scale_x = self.scale_y = max(sx, sy)
+        elif fit == "fill":
+            self.scale_x, self.scale_y = sx, sy  # stretches; aspect not preserved
         else:
             raise ValueError(f"unsupported fit policy: {fit!r}")
-        if fit != "fill":
-            self.offset_x = (out_w - scene_w * self.scale) / 2.0
-            self.offset_y = (out_h - scene_h * self.scale) / 2.0
+        self.offset_x = (out_w - scene_w * self.scale_x) / 2.0
+        self.offset_y = (out_h - scene_h * self.scale_y) / 2.0
 
     def point(self, x: float, y: float) -> tuple[float, float]:
-        return (self.offset_x + x * self.scale, self.offset_y + y * self.scale)
+        return (self.offset_x + x * self.scale_x, self.offset_y + y * self.scale_y)
 
     def length(self, v: float) -> float:
-        return v * self.scale
+        """Scale a length -- a stroke width, a glyph cell. Under a non-uniform
+        ``fill`` there is no single right answer, so take the smaller axis and
+        keep strokes from fattening."""
+        return v * min(self.scale_x, self.scale_y)
 
 
 def _object_transform(obj: SceneObject, viewport: Viewport):

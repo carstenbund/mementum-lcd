@@ -111,7 +111,11 @@ class Scene:
     @property
     def ordered_layers(self) -> tuple[Layer, ...]:
         """Layers in paint order. Stable: z first, declaration order second."""
-        return tuple(sorted(self.layers, key=lambda l: (l.z, self.layers.index(l))))
+        return tuple(
+            layer for _, _, layer in sorted(
+                (layer.z, index, layer) for index, layer in enumerate(self.layers)
+            )
+        )
 
     def object_ids(self) -> tuple[str, ...]:
         return tuple(o.id for layer in self.layers for o in layer.objects)

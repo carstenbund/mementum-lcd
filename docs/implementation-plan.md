@@ -5,8 +5,12 @@ The proposal says *what* and *why*; this document says *what to build, in what
 order, and how we know it worked*. Section references (§n) point into the
 proposal.
 
-**Status:** nothing is built yet. `mementum-lcd` currently contains only the
-proposal.
+**Status.** Phase 0c is built: the participant core (`mementum_node/core/`)
+and the simulation harness (`sim/`) exist, the six scenarios pass, and the
+Phase 0c gate runs in CI without hardware — see
+[`phase0c-report.md`](phase0c-report.md). Phases 0 and 0b are not started, so
+every number recorded so far is a design property and no hardware gate has been
+satisfied.
 
 ---
 

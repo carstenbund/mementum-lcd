@@ -129,13 +129,17 @@ class Harness:
     def promote_leader(self) -> int:
         return self.sequencer.promote_leader()
 
-    def advance(self, ms: float) -> TickStats:
+    def advance(self, ms: float, step_ms: float | None = None) -> TickStats:
         """Advance virtual time, delivering, heartbeating and rendering as it
         passes. Requests advance the clock too, so the loop is written against
-        an absolute deadline rather than a step count."""
+        an absolute deadline rather than a step count.
+
+        ``step_ms`` coarsens the step for stretches where nothing is being
+        rendered -- a half-hour drift soak does not need 2 ms resolution."""
+        step = self.step_ms if step_ms is None else step_ms
         deadline = self.master.now + ms
         while self.master.now < deadline:
-            self.master.advance(min(self.step_ms, deadline - self.master.now))
+            self.master.advance(min(step, deadline - self.master.now))
             self.stats.steps += 1
             self.stats.deliveries += self.bus.deliver_due()
             now = self.master.now
@@ -161,6 +165,13 @@ class Harness:
             if guard > 100000:  # pragma: no cover - scenario bug guard
                 raise RuntimeError("scene time never reached; is anything playing?")
             self.advance(self.step_ms)
+
+    def set_heartbeats(self, enabled: bool, nodes=None) -> None:
+        """Turn periodic heartbeats on or off. Off is how a drift soak without
+        re-sync is scripted -- and turning them back on is how the recovery
+        from it is measured rather than asserted."""
+        for node in nodes if nodes is not None else self.nodes:
+            node.next_heartbeat_at = (self.master.now + self.heartbeat_ms) if enabled else None
 
     # -- reporting ------------------------------------------------------
 

@@ -82,19 +82,35 @@ class SimNode:
         self.joined_at: float | None = None
 
     # -- the harness drives these; each one is a straight delegation ----
+    #
+    # Each entry point settles the node's stall afterwards: a round trip stalls
+    # the node's clock while it is in flight (so the RTT it measures is real),
+    # and that stall must not leak into the next thing the node does.
 
     def receive(self, message):
-        return self.core.receive(message)
+        try:
+            return self.core.receive(message)
+        finally:
+            self.time_source.stall_ms = 0.0
 
     def register(self) -> bool:
         self.joined_at = self.master.now
-        return self.core.register()
+        try:
+            return self.core.register()
+        finally:
+            self.time_source.stall_ms = 0.0
 
     def heartbeat(self) -> bool:
-        return self.core.heartbeat()
+        try:
+            return self.core.heartbeat()
+        finally:
+            self.time_source.stall_ms = 0.0
 
     def tick(self) -> bool:
-        return self.core.tick()
+        try:
+            return self.core.tick()
+        finally:
+            self.time_source.stall_ms = 0.0
 
     # -- observation ----------------------------------------------------
 

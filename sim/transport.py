@@ -118,10 +118,20 @@ class InProcessTransport:
         return max(0.1, 2.0 * self.model.latency_ms + noise)
 
     def request(self, node_id: str, source: NodeTimeSource, message: Any) -> Any:
-        """One round trip. Virtual time advances across it, because a request
-        genuinely costs real time -- which is what gives Cristian's algorithm an
-        RTT to halve, and what makes the residual sync error come out equal to
-        the modelled asymmetry rather than to zero."""
+        """One round trip.
+
+        Requests from different nodes overlap in reality, so a request costs no
+        *global* virtual time here: it costs the requesting node a stall of one
+        round trip, and the server timestamps the message at the instant it
+        arrives, expressed in that node's stalled frame. Cristian's algorithm
+        then measures a real RTT, halves it, and lands with a residual error
+        equal to the modelled asymmetry -- which is exactly what it does in
+        life, and exactly what it cannot correct for.
+
+        The limitation this trades for: server-side queuing under simultaneous
+        requests is not modelled, only fan-out is (see :meth:`push`). Request
+        concurrency on a real Pi is a hardware measurement (§3.4).
+        """
         if self.sequencer is None:  # pragma: no cover - harness wires this
             raise RuntimeError("transport has no sequencer attached")
         if node_id in self.unreachable:
@@ -131,13 +141,17 @@ class InProcessTransport:
 
         self.requests += 1
         rtt = self._round_trip_ms()
-        inbound = rtt / 2.0 + self.model.asymmetry_ms
-        self.master.now += inbound          # request in flight
+        entry = source.stall_ms
+        # The node blocks for the whole round trip ...
+        source.stall_ms = entry + rtt
+        # ... and the server answers when the request arrives: half the round
+        # trip later, plus whatever asymmetry the model injects.
+        arrival = self.master.now + entry + rtt / 2.0 + self.model.asymmetry_ms
+        held, self.master.now = self.master.now, arrival
         try:
-            reply = self.sequencer.handle(message)  # server timestamps on arrival
+            return self.sequencer.handle(message)
         finally:
-            self.master.now += rtt - inbound  # reply in flight
-        return reply
+            self.master.now = held
 
     # -- server -> nodes (concurrent fan-out) ----------------------------
 
