@@ -142,6 +142,8 @@ mementum-lcd/
     node.py             simulated participant = real core + headless sink
     harness.py          spin up 1 server + N nodes, run a scenario, assert
     assert_sync.py      buffer comparison across nodes at the same sceneTime
+    capture.py          dump any node's composited buffer to PNG
+    wall.py             live tune-in / mosaic of N nodes' buffers
     scenarios/
       basic_play.py
       late_join.py
@@ -153,9 +155,58 @@ mementum-lcd/
 
 **Gate.** Two simulated nodes produce identical buffers at the same `sceneTime`;
 a node joining mid-scene converges to the same buffer; a node that misses `PLAY`
-recovers on the next heartbeat; the whole suite runs in CI without hardware.
+recovers on the next heartbeat; any node's buffer can be captured to PNG and the
+mosaic renders; the whole suite runs in CI without hardware.
 
-### 3.6 The C player on the host
+### 3.6 Seeing the result — frame capture and the virtual video wall
+
+A headless node still has a complete composited frame in memory; nothing about
+being headless makes it invisible. Capturing that buffer turns the simulation
+from a pass/fail suite into something you can *watch*.
+
+**Capture at the sink boundary, not from hardware.** `drm_screen` composites into
+an RGBA frame and hands it to a backend adapter — that frame is the capture
+point, and it is the same place a sink lives (§14). No dumb-buffer mmap, no
+scanout readback, and the identical tool therefore works for a simulated node, a
+headless test, and a real Raspberry Pi node. Capture is a property of the sink
+layer, not of the simulator.
+
+Three things this makes possible:
+
+* **Tune in to any node.** Pick node *N*, watch its buffer live. With 300
+  simulated participants, this is the difference between a legible swarm and a
+  log file.
+* **The virtual video wall.** Compose every node's buffer into a mosaic — the
+  whole installation on one screen. For a heterogeneous set (480×320 beside
+  1920×1080 beside a projector) this is how the design-canvas `fit` policy (§6)
+  gets checked: by looking at it.
+* **Skew, visualised.** Capture every node at one wall-clock instant and diff.
+  Who is behind, and by how much, becomes a picture rather than a number — the
+  in-simulation counterpart of the GPIO frame markers (§0.4).
+
+**Golden frames.** Store reference PNGs per scene and time, diff them in CI.
+Between *identical* renderers the comparison can be exact; between different ones
+(Python reference versus C player) it needs a perceptual tolerance, because
+antialiasing and text metrics legitimately differ — which is itself the
+measurement that answers proposal open question 7. Pin library versions or the
+diffs will rot (risk R12).
+
+**On the ESP32, capture is not free.** There is no spare full frame to ship. Two
+tiers instead:
+
+* **Frame hash, always on.** Each node hashes its rendered frame at a given
+  `sceneTime` and reports it. Cheap, tiny, and a direct check that two devices
+  really do render the same picture at the same moment. Valid only between
+  *identical* renderers — device against device, or device against the same C
+  player on the host (§3.7) — never against the Python reference.
+* **Thumbnail on request, debug only.** Downscaled RGB565 over HTTP, on demand,
+  never in the frame loop.
+
+The frame hash deserves emphasis: it extends the buffer-identity assertion from
+the simulator onto real hardware at almost no cost, and it is the only way to
+verify two panels agree without pointing a camera at them.
+
+### 3.7 The C player on the host
 
 The second half of the same idea, and it lands later — after Phase 0 has
 established which LVGL/ThorVG APIs actually exist.
@@ -306,7 +357,7 @@ later cross-compiles.
    counters. `seek()` to an arbitrary time must give the same result as arriving
    there by stepping.
 8. **Renderer.** Push evaluated properties into LVGL objects; render; flush.
-   Keep the display driver behind a thin interface so the host build (§3.6) and
+   Keep the display driver behind a thin interface so the host build (§3.7) and
    the device build differ only there.
 9. **Clock.** Port `serverNow()` / `syncClock()` from `mementum-led`
    (`ws_wifi.cpp:196`) — Cristian, best of three, refreshed on heartbeat.
@@ -323,6 +374,12 @@ Two mechanisms, both cheap:
 * **High-speed video** as the human-facing confirmation: 240 fps phone video
   gives ~4 ms resolution, adequate against a 20 ms budget, and it is what you
   show people.
+
+* **Frame hash** (§3.6). Each device hashes its rendered frame and reports it on
+  request. Two devices rendering the same scene at the same `sceneTime` must
+  agree — a direct check on buffer identity that costs almost nothing and needs
+  no camera. Build it in during Phase 0; it stays useful for the life of the
+  project.
 
 Also log per frame: evaluate time, render time, flush time, and free heap. The
 1 % low fps figure matters more than the average (§17).
@@ -701,6 +758,7 @@ Each justified by a scene that needs it.
 | R9 | Simulation diverges from hardware — timing, loss, jitter | Compare the first hardware fan-out and skew numbers against the simulated curve | Re-parameterise the simulator from measurement; record the delta. The simulator is calibrated by hardware, never the reverse |
 | R10 | *Process risk:* a green simulation is allowed to satisfy a hardware gate | Review at each phase gate | §3.4 — simulated numbers are design properties, hardware numbers are physical ones. Gates say which they require |
 | R11 | Logic drifts into `sim/` and stops being tested in the real path | Anything in `sim/` that is not clock, transport or sink | §3.2 — the simulated node runs the real core; move it back |
+| R12 | Golden-frame diffs rot across library versions | CI failures with no code change | Pin LVGL/ThorVG/Pillow versions; perceptual tolerance for cross-renderer comparison; regenerate goldens deliberately, never automatically |
 
 ---
 
