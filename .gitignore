@@ -75,3 +75,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 sim-out/
+
+# vendored third-party sources (pinned, cloned by poc/host-player/fetch-lvgl.sh)
+third_party/
