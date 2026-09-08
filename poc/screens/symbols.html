@@ -1,0 +1,23 @@
+<!-- screen-HTML with a timeline, per implementation plan section 0b.1.
+     Compile with tools/compose.py, writing the scene to poc/scenes/symbols-blend.json -->
+<screen width="450" height="250" name="symbols-blend" id="75"
+        excited="24" resting="3" turn="16">
+
+  <layer id="background" z="0">
+    <box x="0" y="0" w="450" h="250" color="#0a0e14" />
+  </layer>
+
+  <layer id="symbols" z="10">
+    <symbol id="eagle" src="../../assets/svg-source/signart02.svg"
+            stroke="#8fe0c2" stroke-width="2.2"
+            draw="3s" seen="1.4s" excite="1.4s" handover="1.6s" />
+
+    <symbol id="peace" src="../../assets/svg-source/signart03.svg"
+            stroke="#8fe0c2" stroke-width="2.2"
+            calm="1.6s" seen="1.4s" excite="1.4s" handover="1.6s" />
+
+    <symbol id="handshake" src="../../assets/svg-source/signart22.svg"
+            stroke="#8fe0c2" stroke-width="2.2"
+            calm="1.6s" seen="1.4s" excite="1.4s" exit="0.5s" />
+  </layer>
+</screen>

@@ -23,7 +23,25 @@ from __future__ import annotations
 import math
 import re
 
-__all__ = ["Subpath", "flatten_path", "parse_path", "polyline_length", "trim_polyline"]
+__all__ = [
+    "DEFORM_SAMPLE_STEP",
+    "HELIX_BANDS",
+    "HELIX_FOCAL",
+    "Subpath",
+    "band_of",
+    "band_depth",
+    "deform_helix",
+    "deform_sine",
+    "perspective_scale",
+    "flatten_path",
+    "parse_path",
+    "polyline_length",
+    "normal_offsets",
+    "resample_polyline",
+    "nearest_arc_position",
+    "ripple_offsets",
+    "trim_polyline",
+]
 
 Point = tuple[float, float]
 Subpath = list[Point]
@@ -199,3 +217,243 @@ def trim_polyline(points: Subpath, progress: float) -> Subpath:
         walked += seg
         out.append(b)
     return out
+
+
+# -- deformation ----------------------------------------------------------
+#
+# A deformation is Mementum's contribution to an authored symbol: SVG gives the
+# geometry, and the timeline moves it. The vocabulary is deliberately small and
+# named -- `sine` first -- because a general expression language here would be a
+# graphics language, which is on the refusal list.
+#
+# Both players must sample the path identically or the wave differs in shape,
+# so the sampling rule is part of the contract rather than an implementation
+# detail: **uniform steps of 2.0 design units along the undeformed arc length,
+# always including the final point.**
+
+#: Design units between deformation samples. Changing this changes every wave.
+DEFORM_SAMPLE_STEP = 2.0
+
+
+def resample_polyline(points: Subpath, step: float = DEFORM_SAMPLE_STEP) -> list[tuple[Point, float]]:
+    """Uniform samples along a polyline as (point, distance-from-start).
+
+    The last sample is always the polyline's end, so a deformation reaches the
+    end of the stroke rather than stopping a fraction short of it.
+    """
+    total = polyline_length(points)
+    if total <= 0.0 or len(points) < 2:
+        return [(points[0], 0.0)] if points else []
+
+    count = max(2, int(math.ceil(total / step)) + 1)
+    out: list[tuple[Point, float]] = []
+    index = 0
+    walked = 0.0
+    seg_length = _dist(points[0], points[1])
+
+    for i in range(count):
+        target = total * i / (count - 1)
+        while index < len(points) - 2 and walked + seg_length < target:
+            walked += seg_length
+            index += 1
+            seg_length = _dist(points[index], points[index + 1])
+        a, b = points[index], points[index + 1]
+        t = 0.0 if seg_length <= 0.0 else (target - walked) / seg_length
+        out.append(((a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t), target))
+    return out
+
+
+def deform_sine(
+    samples: list[tuple[Point, float]],
+    amplitude: float,
+    wavelength: float,
+    phase: float,
+) -> Subpath:
+    """Offset each sample perpendicular to the path by a travelling sine.
+
+        offset = amplitude * sin(2*pi * (distance / wavelength + phase))
+
+    ``phase`` is in cycles, and it is animated linearly rather than looped: a
+    loop construct would need an iteration counter, and a counter in the render
+    path breaks late join. Taking the phase modulo a cycle happens here, in the
+    sine, so periodic motion stays a pure function of ``sceneTime``.
+    """
+    if not samples:
+        return []
+    if wavelength <= 0.0:
+        return [point for point, _ in samples]
+
+    out: Subpath = []
+    for i, (point, distance) in enumerate(samples):
+        previous = samples[max(0, i - 1)][0]
+        following = samples[min(len(samples) - 1, i + 1)][0]
+        dx, dy = following[0] - previous[0], following[1] - previous[1]
+        length = math.hypot(dx, dy)
+        if length <= 1e-9:
+            out.append(point)
+            continue
+        nx, ny = -dy / length, dx / length
+        offset = amplitude * math.sin(2.0 * math.pi * (distance / wavelength + phase))
+        out.append((point[0] + nx * offset, point[1] + ny * offset))
+    return out
+
+
+# -- helix ----------------------------------------------------------------
+#
+# The same travelling wave, but a quarter cycle apart in two directions: the
+# in-plane offset the sine already applies, and an equal offset in *depth*. The
+# stroke then reads as a ribbon turning in space rather than a line wobbling on
+# glass.
+#
+# There is no 3D pipeline behind this and there should not be. Each sample gets
+# a `z`, one perspective divide projects it back onto the design canvas, and the
+# output is the same strokes as everything else. What sells the depth is not the
+# projection but what rides on it: nearer parts of the stroke are drawn thicker
+# and brighter.
+#
+# Both players must band the stroke identically or the two look different, so
+# the depth factor is analytic -- derived from the amplitude and focal length
+# rather than measured per frame.
+
+#: Distance from the eye to the design canvas, in design units.
+HELIX_FOCAL = 520.0
+
+#: Depth bands. A stroke is drawn once per band, far to near, because a stroke
+#: width is a property of a path and not of a point -- on the device as here.
+HELIX_BANDS = 8
+
+#: How much darker the farthest band is than the nearest.
+HELIX_SHADE_FAR = 0.45
+
+
+def perspective_scale(z: float, focal: float = HELIX_FOCAL) -> float:
+    """Projection factor for a sample at depth ``z``. Positive z is nearer."""
+    denominator = focal - z
+    if denominator <= 1e-6:
+        return 1.0
+    return focal / denominator
+
+
+def band_depth(band: int, bands: int = HELIX_BANDS) -> float:
+    """The representative depth factor of a band, 0 (far) to 1 (near)."""
+    return (band + 0.5) / bands
+
+
+def band_of(t: float, bands: int = HELIX_BANDS) -> int:
+    index = int(t * bands)
+    return 0 if index < 0 else (bands - 1 if index >= bands else index)
+
+
+def normal_offsets(samples: list[tuple[Point, float]], offsets: list[float]) -> Subpath:
+    """Displace each sample perpendicular to the path by its own offset.
+
+    The shared step behind every in-plane deformation: a sine, a ripple, or
+    both added together before anything is drawn."""
+    out: Subpath = []
+    for i, ((point, _), offset) in enumerate(zip(samples, offsets)):
+        previous = samples[max(0, i - 1)][0]
+        following = samples[min(len(samples) - 1, i + 1)][0]
+        dx, dy = following[0] - previous[0], following[1] - previous[1]
+        length = math.hypot(dx, dy)
+        if length <= 1e-9 or offset == 0.0:
+            out.append(point)
+            continue
+        out.append((point[0] - dy / length * offset, point[1] + dx / length * offset))
+    return out
+
+
+def ripple_offsets(
+    samples: list[tuple[Point, float]], ripples, scene_time: float, offset: float = 0.0
+) -> list[float]:
+    """Total in-plane offset from every live ripple, per sample.
+
+    ``offset`` is how far along the whole path this subpath starts, so a ripple
+    is positioned on the pen's trajectory rather than within one stroke."""
+    return [
+        sum(ripple.offset(offset + distance, scene_time) for ripple in ripples)
+        for _, distance in samples
+    ]
+
+
+def deform_helix(
+    samples: list[tuple[Point, float]],
+    amplitude: float,
+    wavelength: float,
+    phase: float,
+    centre: Point,
+    focal: float = HELIX_FOCAL,
+    sway: float | None = None,
+    extra: list[float] | None = None,
+) -> list[tuple[Point, float]]:
+    """Project a helical deformation. Returns [(point, depth factor 0..1)].
+
+    ``amplitude`` moves the stroke *into* the picture and ``sway`` moves it
+    *across*. Only the second can fold — an inward offset larger than the local
+    radius of curvature makes the curve cross itself — so they are separate
+    numbers rather than one.
+
+    ``centre`` is the design canvas centre: the vanishing point, so an object's
+    position decides how much perspective it gets, as it should.
+    """
+    if sway is None:
+        sway = amplitude * 0.4
+    if not samples:
+        return []
+    if wavelength <= 0.0 or amplitude == 0.0:
+        return [(point, 1.0) for point, _ in samples]
+
+    near = perspective_scale(abs(amplitude), focal)
+    far = perspective_scale(-abs(amplitude), focal)
+    span = near - far
+
+    out: list[tuple[Point, float]] = []
+    for i, (point, distance) in enumerate(samples):
+        previous = samples[max(0, i - 1)][0]
+        following = samples[min(len(samples) - 1, i + 1)][0]
+        dx, dy = following[0] - previous[0], following[1] - previous[1]
+        length = math.hypot(dx, dy)
+        theta = 2.0 * math.pi * (distance / wavelength + phase)
+
+        x, y = point
+        offset = sway * math.sin(theta) + (extra[i] if extra is not None else 0.0)
+        if length > 1e-9 and offset != 0.0:
+            nx, ny = -dy / length, dx / length
+            x += nx * offset
+            y += ny * offset
+        z = amplitude * math.cos(theta)
+
+        k = perspective_scale(z, focal)
+        out.append((
+            (centre[0] + (x - centre[0]) * k, centre[1] + (y - centre[1]) * k),
+            1.0 if span <= 1e-9 else (k - far) / span,
+        ))
+    return out
+
+
+def nearest_arc_position(scene, x: float, y: float, max_distance: float = 60.0):
+    """The arc position of the stroke nearest a point on the design canvas.
+
+    A touch lands on a canvas but a ripple travels along a line, so the finger
+    has to be mapped onto the stroke first. Returns ``None`` when nothing is
+    near enough to have been touched, which is what a tap on empty background
+    is.
+    """
+    best = None
+    best_distance = max_distance * max_distance
+    for layer in scene.layers:
+        for obj in layer.objects:
+            if obj.type != "path" or not obj.visible:
+                continue
+            # Cumulative along the whole path, not restarted per stroke: a
+            # ripple travels one pen trajectory, exactly as `progress` reveals
+            # one. Measuring per subpath would fire the disturbance at the same
+            # local distance into every stroke at once.
+            walked = 0.0
+            for subpath in flatten_path(obj.props["d"]):
+                for point, distance in resample_polyline(subpath, 6.0):
+                    delta = (point[0] - x) ** 2 + (point[1] - y) ** 2
+                    if delta < best_distance:
+                        best_distance = delta
+                        best = walked + distance
+                walked += polyline_length(subpath)
+    return best

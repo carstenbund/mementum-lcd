@@ -18,7 +18,7 @@ from mementum_node.core.clock import CristianClock
 from mementum_node.core.framebuffer import Frame
 from mementum_node.core.pacer import DisplayPacer
 from mementum_node.core.participant import ParticipantCore
-from mementum_node.core.protocol import Capabilities, Display, NodeDescriptor
+from mementum_node.core.protocol import Capabilities, Display, NodeDescriptor, Position
 from mementum_node.core.render_backend import ReferenceRenderer, Renderer
 from mementum_node.core.sink import HeadlessSink, NullSink
 
@@ -50,6 +50,7 @@ class SimNode:
         idle_policy: str = "blank",
         cache: AssetCache | None = None,
         renderer: Renderer | None = None,
+        position: Position | None = None,
     ):
         self.node_id = node_id
         self.master = master
@@ -72,7 +73,11 @@ class SimNode:
             device=device,
             roles=roles,
             display=display if display is not None else Display(480, 320, "rgb565"),
-            capabilities=capabilities if capabilities is not None else Capabilities(),
+            # What a node can render is a property of the renderer it runs, so
+            # take it from there rather than letting the two be stated twice.
+            capabilities=(capabilities if capabilities is not None
+                          else getattr(self.renderer, "capabilities", Capabilities())),
+            position=position,
         )
         self.core = ParticipantCore(
             descriptor=descriptor,
@@ -117,6 +122,13 @@ class SimNode:
     def tick(self) -> bool:
         try:
             return self.core.tick()
+        finally:
+            self.time_source.stall_ms = 0.0
+
+    def touch(self, x: float, y: float, strength: float = 1.0) -> bool:
+        """Somebody touches this unit's panel, at a point on the design canvas."""
+        try:
+            return self.core.touch(x, y, strength)
         finally:
             self.time_source.stall_ms = 0.0
 

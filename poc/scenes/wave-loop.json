@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "id": 45,
+  "name": "wave-loop",
+  "width": 600,
+  "height": 200,
+  "fit": "contain",
+  "duration": 6000,
+  "layers": [
+    { "id": "background", "z": 0, "objects": [
+      { "type": "rect", "id": "bg", "x": 0, "y": 0, "w": 600, "h": 200, "fill": "#08080c" } ] },
+    { "id": "wave", "z": 10, "objects": [
+      { "type": "path", "id": "line",
+        "d": "M 40 100 L 560 100",
+        "length": 520,
+        "stroke": "#cfe9ff", "stroke_width": 3, "progress": 1,
+        "deform": { "type": "sine", "amplitude": 0, "wavelength": 173.33, "phase": 0 } } ] }
+  ],
+  "animations": [
+    { "target": "line", "property": "deform.amplitude",
+      "start": 0, "duration": 800, "from": 0, "to": 40, "easing": "ease-out" },
+    { "target": "line", "property": "deform.phase",
+      "start": 0, "duration": 6000, "from": 0, "to": 12, "easing": "linear" },
+    { "target": "line", "property": "deform.amplitude",
+      "start": 4000, "duration": 2000, "from": 40, "to": 0, "easing": "ease-in-out" }
+  ]
+}

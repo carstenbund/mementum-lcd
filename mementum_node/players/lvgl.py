@@ -21,6 +21,8 @@ import os
 from ctypes import c_char_p, c_double, c_int, c_size_t, c_void_p
 
 from mementum_node.core.framebuffer import Frame
+from mementum_node.core.protocol import Capabilities
+from mementum_node.core.ripple import Ripple
 from mementum_node.core.scene import Scene
 
 __all__ = ["LvglPlayer", "LvglPlayerError", "PlayerLibrary", "is_available", "library_path"]
@@ -94,6 +96,11 @@ class PlayerLibrary:
         lib.mm_player_property_at.restype = c_double
         lib.mm_player_ease.argtypes = [c_char_p, c_double]
         lib.mm_player_ease.restype = c_double
+        lib.mm_player_add_ripple.argtypes = [c_void_p] + [c_double] * 7
+        lib.mm_player_add_ripple.restype = c_int
+        lib.mm_player_ripple_count.argtypes = [c_void_p]
+        lib.mm_player_ripple_count.restype = c_int
+        lib.mm_player_clear_ripples.argtypes = [c_void_p]
 
     def error(self) -> str:
         message = self._lib.mm_player_error()
@@ -110,9 +117,14 @@ class PlayerLibrary:
 
 
 class LvglPlayer:
-    """A :class:`~mementum_node.core.render_backend.Renderer` backed by C."""
+    """A :class:`~mementum_node.core.render_backend.Renderer` backed by C.
+
+    Available where LVGL is: the host, the ESP32, and a Pi that chooses to run
+    it. Where it is not, a node runs a different renderer and declares less.
+    """
 
     name = "lvgl"
+    capabilities = Capabilities(scene_ir=1, vector=True, text=True, lottie=False)
 
     def __init__(self, library: PlayerLibrary | None = None):
         self._library = library or PlayerLibrary.instance()
@@ -142,6 +154,33 @@ class LvglPlayer:
         if rc != 0:
             raise LvglPlayerError(self._library.error())
         return Frame(self._width, self._height, bytearray(self._buffer))
+
+    def add_ripple(self, ripple: Ripple) -> None:
+        """Start a ripple on the device's own renderer.
+
+        The same overlay the Python reference keeps, held by the C player
+        instead — so a unit running the shipping code path responds to a touch
+        rather than quietly ignoring it."""
+        if self._handle is None:
+            raise LvglPlayerError("player holds no scene")
+        rc = self._library.raw.mm_player_add_ripple(
+            self._handle,
+            float(ripple.origin),
+            float(ripple.start),
+            float(ripple.amplitude),
+            float(ripple.wavelength),
+            float(ripple.speed),
+            float(ripple.life_ms),
+            float(ripple.width),
+        )
+        if rc != 0:
+            raise LvglPlayerError(self._library.error())
+
+    def ripple_count(self) -> int:
+        return int(self._library.raw.mm_player_ripple_count(self._handle))
+
+    def clear_ripples(self) -> None:
+        self._library.raw.mm_player_clear_ripples(self._handle)
 
     # -- introspection, for conformance tests ---------------------------
 

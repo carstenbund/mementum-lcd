@@ -84,3 +84,43 @@ def test_invalid_scenes_are_refused(mutation, message):
     with pytest.raises(ValueError) as exc:
         parse_scene(raw)
     assert message in str(exc.value)
+
+
+#: A phase list: build up, hold, decay. The governing animation is the last one
+#: to have started, so an animation that has not begun cannot impose its
+#: ``from`` value on an earlier phase (decision 0006). Shared with
+#: ``tests/test_c_player.py`` so both evaluators are pinned to the same vector.
+PHASE_SCENE = {
+    "version": 1,
+    "width": 100,
+    "height": 100,
+    "layers": [{"id": "l", "z": 0, "objects": [
+        {"type": "rect", "id": "r", "x": 0, "y": 0, "w": 10, "h": 10,
+         "fill": "#ffffff", "opacity": 0}]}],
+    "animations": [
+        {"target": "r", "property": "opacity", "start": 0, "duration": 1000,
+         "from": 0, "to": 1, "easing": "linear"},
+        {"target": "r", "property": "opacity", "start": 5000, "duration": 1000,
+         "from": 1, "to": 0, "easing": "linear"},
+    ],
+}
+
+PHASE_VECTOR = [(0, 0.0), (500, 0.5), (1000, 1.0), (3000, 1.0),
+                (5000, 1.0), (5500, 0.5), (6000, 0.0), (9000, 0.0)]
+
+
+@pytest.mark.parametrize("scene_time, expected", PHASE_VECTOR)
+def test_a_phase_list_composes(scene_time, expected):
+    """Two animations on one property, at different times, must both happen."""
+    scene = parse_scene(PHASE_SCENE)
+    assert objects_of(evaluate(scene, scene_time))["r"].opacity == pytest.approx(
+        expected, abs=1e-6
+    )
+
+
+def test_an_unstarted_animation_does_not_reach_backwards(scene):
+    """The regression this rule exists for: before decision 0006 the decay's
+    ``from`` value overwrote the entire build-up."""
+    parsed = parse_scene(PHASE_SCENE)
+    assert objects_of(evaluate(parsed, 0))["r"].opacity == 0.0
+    assert objects_of(evaluate(parsed, 250))["r"].opacity == pytest.approx(0.25)

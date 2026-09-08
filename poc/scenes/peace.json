@@ -1,0 +1,139 @@
+{
+ "version": 1,
+ "id": 71,
+ "name": "peace",
+ "width": 450,
+ "height": 250,
+ "fit": "contain",
+ "duration": 10800,
+ "layers": [
+  {
+   "id": "background",
+   "z": 0,
+   "objects": [
+    {
+     "type": "rect",
+     "id": "bg",
+     "x": 0,
+     "y": 0,
+     "w": 450,
+     "h": 250,
+     "fill": "#161020"
+    }
+   ]
+  },
+  {
+   "id": "symbol",
+   "z": 10,
+   "objects": [
+    {
+     "type": "path",
+     "id": "mark",
+     "d": "m229 99l3-2 2.5-4.5 10-50 2.5-8.5 3-4.5 3-2 5.5-1 5.5 1 3 2 3.5 3.5 1.5 3.5 0.5 4-1 6.5-3 13.5-4.5 25 18.5 26 8.5 14-11 17.5-21 30-1.5 8 1 29.5-0.5 17-68-0.5-1-8.5 1-21.5-0.5-8.5-1-3.5-7-8-5.5-10-2.5-11.5-1-13 2.5 3 4 3 4.5 1 5 0 9.5-2 34-12.5-16 23-2 4-0.5 4.5 0 4.5 2.5 5 8.5 12 5 4.5m0 0l2.5-2 0-2.5-11.5-17-1.5-3.5 0.5-2 4-7 19-27.5 11.5-4 1.5-2 0.5-2-2.5-4.5-6-6-12 4.5-2.5 0-2.5-1-3-2.5-5-8.5 0-2 1.5-2-10-39.5-4.5-25.5-2-5-2-1.5-2-1-4 0-5 2.5-1.5 3 0 5.5 12 67.5 1.5 4 9.5 14 1 2.5 0 3-2 2.5-3.5 2.5-4.5 1-3.5-0.5-5.5-5-8-10.5-9-10.5-2.5-4-0.5-4 0.5-2.5 2.5-3m0 0l4.5-3 5-1.5 4 1.5 3 3.5-10.5-57.5 0.5-7 1.5-3.5 2-3 3-2 4.5-1.5 5 0 3 1 4 2.5 2.5 3 2 5 3 17 11 48 0 0m35-48l2.5-11-0.5-2-1-2-3-2.5-3.5-1-3.5 0.5-2.5 2.5-1.5 5.5-11.5 54 19-8 5.5-36 0 0m-105 67l0-2 2.5-3.5 4-3.5 4-0.5 4 1.5 3 3 6.5 9 9.5 11 1.5 5-1.5 3.5-2 1.5-3 1-2.5 0-3.5-1.5-18.5-19-4-5.5 0 0",
+     "length": 1439.181,
+     "subpaths": [
+      601.318,
+      396.19,
+      189.418,
+      148.139,
+      104.116
+     ],
+     "stroke": "#ffd27f",
+     "stroke_width": 2.2,
+     "progress": 0,
+     "deform": {
+      "type": "helix",
+      "amplitude": 0,
+      "sway": 0,
+      "wavelength": 150,
+      "phase": 0,
+      "focal": 420
+     }
+    }
+   ]
+  }
+ ],
+ "animations": [
+  {
+   "target": "mark",
+   "property": "progress",
+   "start": 0,
+   "duration": 3000,
+   "from": 0,
+   "to": 1,
+   "easing": "ease-in-out"
+  },
+  {
+   "target": "mark",
+   "property": "deform.amplitude",
+   "start": 3200,
+   "duration": 1600,
+   "from": 0,
+   "to": 22,
+   "easing": "ease-in-out"
+  },
+  {
+   "target": "mark",
+   "property": "deform.sway",
+   "start": 3200,
+   "duration": 1600,
+   "from": 0,
+   "to": 5,
+   "easing": "ease-in-out"
+  },
+  {
+   "target": "mark",
+   "property": "deform.phase",
+   "start": 3200,
+   "duration": 6600,
+   "from": 0,
+   "to": 5,
+   "easing": "linear"
+  },
+  {
+   "target": "mark",
+   "property": "transform.scale",
+   "start": 5200,
+   "duration": 2400,
+   "from": 1.0,
+   "to": 1.12,
+   "easing": "ease-in-out"
+  },
+  {
+   "target": "mark",
+   "property": "deform.amplitude",
+   "start": 8000,
+   "duration": 1800,
+   "from": 22,
+   "to": 0,
+   "easing": "ease-in-out"
+  },
+  {
+   "target": "mark",
+   "property": "deform.sway",
+   "start": 8000,
+   "duration": 1800,
+   "from": 5,
+   "to": 0,
+   "easing": "ease-in-out"
+  },
+  {
+   "target": "mark",
+   "property": "transform.scale",
+   "start": 8000,
+   "duration": 1800,
+   "from": 1.12,
+   "to": 1.0,
+   "easing": "ease-in-out"
+  },
+  {
+   "target": "mark",
+   "property": "opacity",
+   "start": 10000,
+   "duration": 800,
+   "from": 1,
+   "to": 0,
+   "easing": "linear"
+  }
+ ]
+}

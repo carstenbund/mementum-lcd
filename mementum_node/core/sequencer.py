@@ -25,6 +25,8 @@ from .clock import Clock
 from .library import SceneLibrary
 from .protocol import (
     DISPLAY_LEAD_MS,
+    RippleCommand,
+    Touch,
     HEARTBEAT_INTERVAL_MS,
     AssetReply,
     AssetRequest,
@@ -45,7 +47,22 @@ from .protocol import (
 )
 from .transport import PushResult
 
-__all__ = ["INCAPABLE_POLICIES", "PlayResult", "RegisteredNode", "Sequencer", "derive_display_lead"]
+__all__ = [
+    "INCAPABLE_POLICIES",
+    "PlayResult",
+    "RegisteredNode",
+    "Sequencer",
+    "TOUCH_SPEED_M_S",
+    "TouchResult",
+    "derive_display_lead",
+]
+
+#: How fast a touch crosses the installation, in metres per second. An artistic
+#: number, not a network one — slow enough to watch a gesture travel. It must
+#: stay slower than fan-out, or a unit would be asked to ripple before it has
+#: been told to; `Sequencer.touch` enforces that by never scheduling sooner
+#: than the display lead.
+TOUCH_SPEED_M_S = 2.4
 
 #: What to do when a registered node cannot render a scene (proposal open
 #: question). Named rather than implied, so the choice is visible.
@@ -64,6 +81,27 @@ class RegisteredNode:
     @property
     def node_id(self) -> str:
         return self.descriptor.node_id
+
+
+@dataclass
+class TouchResult:
+    """What one touch turned into: a ripple per unit, timed by distance."""
+
+    origin: str
+    seq: int
+    scheduled: dict[str, float] = field(default_factory=dict)
+    pushes: list[PushResult] = field(default_factory=list)
+
+    @property
+    def reached(self) -> int:
+        return sum(1 for p in self.pushes if p.delivered)
+
+    @property
+    def spread_ms(self) -> float:
+        """How long the gesture takes to cross the whole installation."""
+        if not self.scheduled:
+            return 0.0
+        return max(self.scheduled.values()) - min(self.scheduled.values())
 
 
 @dataclass
@@ -122,6 +160,9 @@ class Sequencer:
         self.leader_epoch = 1
         self.seq = 0
         self.play_history: list[PlayResult] = []
+        self.touch_seq = 0
+        self.touch_speed = TOUCH_SPEED_M_S
+        self.touch_history: list[TouchResult] = []
 
     # -- request handling (the node -> server direction) -----------------
 
@@ -138,6 +179,8 @@ class Sequencer:
         if isinstance(message, AssetRequest):
             payload = self.library.asset(message.asset_hash)
             return AssetReply(message.asset_hash, payload, payload is not None)
+        if isinstance(message, Touch):
+            return self.touch(message)
         if isinstance(message, Ready):
             node = self.nodes.get(message.node_id)
             if node is not None and message.scene_id not in node.ready_scenes:
@@ -235,6 +278,52 @@ class Sequencer:
         targets = self._targets(skipped if self.incapable_policy == "skip" else ())
         result = PlayResult(self.schedule, self._push(targets, Play(self.schedule)), skipped)
         self.play_history.append(result)
+        return result
+
+    def touch(self, message: Touch) -> TouchResult:
+        """Turn one unit's touch into a ripple on all of them.
+
+        The unit that was touched answers on its own, immediately; everyone else
+        is told when to start, at a time derived from how far away they stand.
+        The gesture then crosses the room at :data:`TOUCH_SPEED_M_S` instead of
+        appearing everywhere at once — which is the difference between a
+        network artefact and something that looks like it is travelling.
+        """
+        self.touch_seq += 1
+        origin = self.nodes.get(message.node_id)
+        origin_position = origin.descriptor.position if origin is not None else None
+
+        scheduled: dict[str, float] = {}
+        commands: dict[str, RippleCommand] = {}
+        for node_id, node in self.nodes.items():
+            if node_id == message.node_id:
+                continue  # the touched unit does not wait for the network
+            position = node.descriptor.position
+            if origin_position is None or position is None:
+                delay = self.lead_ms
+            else:
+                travel = origin_position.distance_to(position) / self.touch_speed * 1000.0
+                # Never sooner than the lead: a unit cannot ripple before it has
+                # been told to, and fan-out is what sets that floor (§20).
+                delay = max(self.lead_ms, travel)
+            scheduled[node_id] = delay
+            commands[node_id] = RippleCommand(
+                origin_node=message.node_id,
+                x=message.x,
+                y=message.y,
+                start_at=message.at + delay,
+                amplitude=0.0,
+                strength=message.strength,
+                seq=self.touch_seq,
+            )
+
+        pushes: list[PushResult] = []
+        if self.fanout is not None:
+            for node_id, command in commands.items():
+                pushes.extend(self.fanout.push([node_id], command))
+
+        result = TouchResult(message.node_id, self.touch_seq, scheduled, pushes)
+        self.touch_history.append(result)
         return result
 
     def stop(self) -> PlayResult:

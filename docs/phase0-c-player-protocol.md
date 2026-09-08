@@ -201,8 +201,11 @@ rather than tolerated: a test fails if the two ever silently start agreeing.
 
 The fix is not a tolerance. Fonts belong on the asset plane, addressed by
 content hash like everything else (proposal §9, §18), so that both players
-rasterise the same glyph outlines. That is the piece to settle before v1 is
-frozen.
+rasterise the same glyph outlines.
+
+*Reprioritised after this run:* text is a supporting content type, not the
+payload ([decision 0005](decisions/0005-symbols-are-the-payload.md)), so this is
+no longer what a v1 freeze waits on. It is "important", not "essential".
 
 ## C6. What this does not say
 
@@ -228,10 +231,12 @@ Phase 0 host — C + LVGL + ThorVG
   mixed swarm under the failure scenarios                    done
 
 Outstanding
-  font assets on the asset plane                             the v1 blocker
+  symbol object with named parts, transform.rotate           the v1 work
+  font assets on the asset plane                             important, not essential
   LVGL text cost, ESP32 build, frame rate, PSRAM, LCD flush  needs hardware
   real network timing, two-node physical skew                needs hardware
 ```
 
-The remaining Scene IR question before a v1 freeze is fonts. Everything else
-outstanding needs a board.
+The remaining Scene IR work before a v1 freeze is the symbol model
+([decision 0005](decisions/0005-symbols-are-the-payload.md)); fonts follow it.
+Everything else outstanding needs a board.

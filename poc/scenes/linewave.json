@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "id": 44,
+  "name": "linewave",
+  "width": 1000,
+  "height": 300,
+  "fit": "contain",
+  "duration": 10000,
+  "layers": [
+    { "id": "background", "z": 0, "objects": [
+      { "type": "rect", "id": "bg", "x": 0, "y": 0, "w": 1000, "h": 300,
+        "fill": "#08080c" } ] },
+
+    { "id": "waves", "z": 10, "objects": [
+      { "type": "path", "id": "wave_main",
+        "d": "M 60 150 L 940 150",
+        "length": 880,
+        "stroke": "#cfe9ff", "stroke_width": 3, "progress": 0,
+        "deform": { "type": "sine", "amplitude": 0, "wavelength": 260, "phase": 0 } },
+
+      { "type": "path", "id": "wave_upper",
+        "d": "M 60 150 L 940 150",
+        "length": 880,
+        "stroke": "#7fb8d8", "stroke_width": 2, "progress": 0,
+        "transform": { "ty": -70 },
+        "deform": { "type": "sine", "amplitude": 0, "wavelength": 260, "phase": 0.25 } },
+
+      { "type": "path", "id": "wave_lower",
+        "d": "M 60 150 L 940 150",
+        "length": 880,
+        "stroke": "#7fb8d8", "stroke_width": 2, "progress": 0,
+        "transform": { "ty": 70 },
+        "deform": { "type": "sine", "amplitude": 0, "wavelength": 260, "phase": 0.5 } } ] }
+  ],
+
+  "animations": [
+    { "target": "wave_main", "property": "progress",
+      "start": 0, "duration": 1200, "from": 0, "to": 1, "easing": "ease-out" },
+
+    { "target": "wave_main", "property": "deform.amplitude",
+      "start": 1200, "duration": 1400, "from": 0, "to": 46, "easing": "ease-in-out" },
+    { "target": "wave_main", "property": "deform.phase",
+      "start": 2600, "duration": 5000, "from": 0, "to": 11, "easing": "linear" },
+
+    { "target": "wave_upper", "property": "progress",
+      "start": 2800, "duration": 600, "from": 0, "to": 1, "easing": "ease-out" },
+    { "target": "wave_upper", "property": "deform.amplitude",
+      "start": 2800, "duration": 600, "from": 0, "to": 30, "easing": "ease-in-out" },
+    { "target": "wave_upper", "property": "deform.phase",
+      "start": 2600, "duration": 5000, "from": 0.25, "to": 11.25, "easing": "linear" },
+
+    { "target": "wave_lower", "property": "progress",
+      "start": 3000, "duration": 600, "from": 0, "to": 1, "easing": "ease-out" },
+    { "target": "wave_lower", "property": "deform.amplitude",
+      "start": 3000, "duration": 600, "from": 0, "to": 30, "easing": "ease-in-out" },
+    { "target": "wave_lower", "property": "deform.phase",
+      "start": 2600, "duration": 5000, "from": 0.5, "to": 11.5, "easing": "linear" },
+
+    { "target": "wave_main", "property": "deform.amplitude",
+      "start": 6200, "duration": 1400, "from": 46, "to": 12, "easing": "ease-in-out" },
+    { "target": "wave_upper", "property": "deform.amplitude",
+      "start": 6200, "duration": 1400, "from": 30, "to": 8, "easing": "ease-in-out" },
+    { "target": "wave_lower", "property": "deform.amplitude",
+      "start": 6200, "duration": 1400, "from": 30, "to": 8, "easing": "ease-in-out" },
+
+    { "target": "wave_main", "property": "deform.amplitude",
+      "start": 7600, "duration": 1400, "from": 12, "to": 0, "easing": "ease-in-out" },
+    { "target": "wave_upper", "property": "deform.amplitude",
+      "start": 7600, "duration": 1400, "from": 8, "to": 0, "easing": "ease-in-out" },
+    { "target": "wave_lower", "property": "deform.amplitude",
+      "start": 7600, "duration": 1400, "from": 8, "to": 0, "easing": "ease-in-out" },
+    { "target": "wave_upper", "property": "opacity",
+      "start": 8200, "duration": 800, "from": 1, "to": 0.35, "easing": "linear" },
+    { "target": "wave_lower", "property": "opacity",
+      "start": 8200, "duration": 800, "from": 1, "to": 0.35, "easing": "linear" }
+  ]
+}

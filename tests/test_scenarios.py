@@ -17,7 +17,7 @@ from sim import scenarios
 
 #: Scenarios that need the C player built. The rest of the suite must keep
 #: running on a machine with no C toolchain.
-NEEDS_C_PLAYER = {"mixed_renderers"}
+NEEDS_C_PLAYER = {"mixed_renderers", "linewave"}
 
 
 @pytest.mark.parametrize("name", scenarios.NAMES)

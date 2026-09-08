@@ -21,10 +21,12 @@
 #define MM_MAX_LAYERS      8
 #define MM_MAX_OBJECTS     32
 #define MM_MAX_ANIMATIONS  32
-#define MM_MAX_SUBPATHS    16
+#define MM_MAX_SUBPATHS    64
 #define MM_MAX_ID          32
 #define MM_MAX_TEXT        64
-#define MM_MAX_PATH_DATA   4096
+#define MM_MAX_PATH_DATA   8192
+
+struct mm_path;
 
 typedef enum {
     MM_OBJ_RECT = 0,
@@ -48,6 +50,10 @@ typedef enum {
     MM_PROP_TRANSFORM_TX,
     MM_PROP_TRANSFORM_TY,
     MM_PROP_TRANSFORM_SCALE,
+    MM_PROP_DEFORM_AMPLITUDE,
+    MM_PROP_DEFORM_WAVELENGTH,
+    MM_PROP_DEFORM_PHASE,
+    MM_PROP_DEFORM_SWAY,
     MM_PROP_UNKNOWN
 } mm_property_t;
 
@@ -59,6 +65,44 @@ typedef struct {
     float tx, ty, scale;
 } mm_transform_t;
 
+typedef enum {
+    MM_DEFORM_NONE = 0,
+    MM_DEFORM_SINE,
+    MM_DEFORM_HELIX,
+    MM_DEFORM_UNKNOWN
+} mm_deform_type_t;
+
+/** A named deformation: SVG gives the geometry, the timeline moves it.
+ *  `wavelength` and `amplitude` are design units, `phase` is cycles. */
+typedef struct {
+    mm_deform_type_t type;
+    float amplitude;
+    float wavelength;
+    float phase;
+    float focal;        /**< helix only: eye distance, in design units */
+    /** helix only: how far the stroke moves *across* the picture, as against
+     *  `amplitude`, which moves it *into* the picture. Separate because only
+     *  the in-plane part can fold: an offset larger than the local radius of
+     *  curvature makes the curve cross itself, which reads as unexplainable
+     *  ripples in the tight parts of a stroke. */
+    float sway;
+} mm_deform_t;
+
+/** The authored values of the animatable properties, as loaded.
+ *
+ *  The evaluator writes animated state in place, so it must start from the
+ *  scene's own values every time rather than from whatever the last evaluation
+ *  left behind. Without this, a property whose animation has not started yet
+ *  keeps a stale value and the player accumulates state across frames -- which
+ *  is precisely what §10 forbids, arriving through the back door. */
+typedef struct {
+    float opacity;
+    float progress;
+    bool visible;
+    mm_transform_t transform;
+    mm_deform_t deform;
+} mm_authored_t;
+
 typedef struct {
     char id[MM_MAX_ID];
     mm_object_type_t type;
@@ -68,13 +112,18 @@ typedef struct {
     float progress;
     bool visible;
     mm_transform_t transform;
+    mm_deform_t deform;
+    mm_authored_t authored;
 
     /* rect */
     float x, y, w, h;
     mm_color_t fill;
 
-    /* path */
-    char d[MM_MAX_PATH_DATA];
+    /* path. Geometry is parsed once, at load: re-parsing `d` per frame would
+     * put text parsing inside the frame loop, which §17 forbids, and the
+     * parsed form is what every frame actually wants. The source string is not
+     * kept — nothing downstream needs it. */
+    struct mm_path *path;
     mm_color_t stroke;
     float stroke_width;
     /* Arc length, from the scene when the composer provides it, otherwise

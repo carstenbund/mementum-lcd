@@ -1,0 +1,68 @@
+{
+ "version": 1,
+ "id": 64,
+ "name": "du",
+ "width": 450,
+ "height": 250,
+ "fit": "contain",
+ "duration": 4000,
+ "layers": [
+  {
+   "id": "background",
+   "z": 0,
+   "objects": [
+    {
+     "type": "rect",
+     "id": "bg",
+     "x": 0,
+     "y": 0,
+     "w": 450,
+     "h": 250,
+     "fill": "#0c0c11"
+    }
+   ]
+  },
+  {
+   "id": "writing",
+   "z": 10,
+   "objects": [
+    {
+     "type": "path",
+     "id": "hand",
+     "d": "m143.5 178l1.5-10 10-12.5 7-6.5 6.5-2.5 7-6.5 16.5-9 4-3.5 5-6m-32.5 25.5l2.5 3-2 10 0 6 1 1.5 3 2 7-3.5 13.5-17.5 3.5-2.5 3.5-1.5m42-72.5l-3 7.5-15.5 24.5-14 27-8 11.5-0.5 2 1.5 4.5-2.5 16 1.5 5.5 3 2.5 5-0.5 5-3 11-10.5 8.5-10.5 4-2.5 8.5-16.5m-12 18.5l4 5 0.5 7 1.5 4.5 2.5 2 3.5-1 7.5-5 9.5-11 4.5-3.5 11-17.5m-11 18l1 3-1.5 10 0.5 5 1.5 4 3 2 5 0 7.5-1.5 21-10",
+     "length": 461.614,
+     "subpaths": [
+      84.109,
+      63.549,
+      176.947,
+      74.925,
+      62.085
+     ],
+     "stroke": "#e8e8f0",
+     "stroke_width": 8.0,
+     "progress": 0
+    }
+   ]
+  }
+ ],
+ "animations": [
+  {
+   "target": "hand",
+   "property": "progress",
+   "start": 0,
+   "duration": 1400,
+   "from": 0,
+   "to": 1,
+   "easing": "ease-in-out"
+  },
+  {
+   "target": "hand",
+   "property": "opacity",
+   "start": 3400,
+   "duration": 600,
+   "from": 1,
+   "to": 0,
+   "easing": "linear"
+  }
+ ]
+}

@@ -27,9 +27,12 @@ from typing import Any
 from .cache import AssetCache, asset_hash
 from .clock import CristianClock
 from .framebuffer import Frame
+from .geometry import nearest_arc_position
 from .pacer import DisplayPacer
 from .protocol import (
     AssetRequest,
+    RippleCommand,
+    Touch,
     Heartbeat,
     ManifestRequest,
     NodeDescriptor,
@@ -43,6 +46,7 @@ from .protocol import (
     Sync,
 )
 from .render_backend import ReferenceRenderer, Renderer
+from .ripple import RIPPLE_DEFAULTS, Ripple
 from .scene import Scene, parse_scene
 from .sink import Sink
 from .transport import TransportError
@@ -95,6 +99,9 @@ class ParticipantCore:
         self.recovered_by_heartbeat = 0
         self.pulls = 0
         self.pushes_received = 0
+        self.touches = 0
+        self.ripples_received = 0
+        self.ripples_unsupported = 0
         self.last_scene_time: float | None = None
         self.last_frame: Frame | None = None
 
@@ -171,9 +178,62 @@ class ParticipantCore:
         if isinstance(message, Sync):
             self.clock.sync()
             return None
+        if isinstance(message, RippleCommand):
+            self._ripple(message)
+            return None
         if isinstance(message, Status):
             return self.status()
         raise ValueError(f"unhandled control message: {type(message).__name__}")
+
+    # -- touch ----------------------------------------------------------
+
+    def touch(self, x: float, y: float, strength: float = 1.0) -> bool:
+        """Somebody touched this unit.
+
+        It answers immediately — waiting for a round trip would make a touch
+        feel broken — and reports the touch so the sequencer can spread it to
+        the neighbours. The local response and the propagated one are the same
+        ripple; only their start times differ.
+        """
+        now = self.clock.shared_now()
+        self._start_ripple(x, y, now, strength)
+        self.touches += 1
+        try:
+            self.transport.request(Touch(self.node_id, x, y, now, strength))
+            return True
+        except TransportError:
+            return False  # the neighbours miss it; this unit still rippled
+
+    def _ripple(self, command: RippleCommand) -> None:
+        """A ripple arriving from another unit, timed by the sequencer."""
+        self.ripples_received += 1
+        self._start_ripple(command.x, command.y, command.start_at, command.strength)
+
+    def _start_ripple(self, x: float, y: float, start_at: float, strength: float) -> None:
+        if self.scene is None or not self.schedule.playing:
+            return
+        adder = getattr(self.renderer, "add_ripple", None)
+        if adder is None:
+            # Never silently: a node that cannot show the second layer must be
+            # visible as such, not quietly inert (§18). Both real renderers can;
+            # this is here so a third one cannot regress the property by
+            # omission.
+            self.ripples_unsupported += 1
+            self.fail_reason = (
+                f"renderer {type(self.renderer).__name__} cannot show touch ripples"
+            )
+            return
+        origin = nearest_arc_position(self.scene, x, y)
+        if origin is None:
+            return
+        adder(
+            Ripple(
+                origin=origin,
+                # Ripples live in scene time, like everything the player draws.
+                start=start_at - self.schedule.display_at,
+                amplitude=RIPPLE_DEFAULTS["amplitude"] * strength,
+            )
+        )
 
     def status(self) -> StatusReply:
         return StatusReply(

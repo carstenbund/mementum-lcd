@@ -18,7 +18,10 @@ from . import easing
 
 __all__ = [
     "ANIMATABLE",
+    "is_animatable",
     "Animation",
+    "DEFORMATIONS",
+    "Deform",
     "Layer",
     "Scene",
     "SceneObject",
@@ -39,8 +42,21 @@ ANIMATABLE = frozenset(
         "transform.tx",
         "transform.ty",
         "transform.scale",
+        "deform.amplitude",
+        "deform.wavelength",
+        "deform.phase",
+        "deform.sway",
     }
 )
+
+def is_animatable(name: str) -> bool:
+    return name in ANIMATABLE
+
+
+#: Named deformations. Small on purpose: SVG contributes the geometry and
+#: Mementum contributes the transformation over time, but a general expression
+#: language here would be a second graphics language (§25).
+DEFORMATIONS = ("sine", "helix")
 
 
 @dataclass(frozen=True)
@@ -48,6 +64,32 @@ class Transform:
     tx: float = 0.0
     ty: float = 0.0
     scale: float = 1.0
+
+
+@dataclass(frozen=True)
+class Deform:
+    """A named deformation applied to a path's geometry over time.
+
+    ``wavelength`` and ``amplitude`` are in design units; ``phase`` is in
+    cycles. Applied in path space, before the object's transform.
+    """
+
+    type: str = "sine"
+    amplitude: float = 0.0
+    wavelength: float = 100.0
+    phase: float = 0.0
+    #: `helix` only: distance from the eye to the design canvas, in design
+    #: units. Smaller is a stronger perspective.
+    focal: float = 520.0
+    #: `helix` only: how far the stroke moves *across* the picture, as opposed
+    #: to `amplitude`, which moves it *into* the picture.
+    #:
+    #: They are separate because only the in-plane part can fold: offsetting a
+    #: curve inward by more than its own radius of curvature makes it cross
+    #: itself, which appears as small unexplainable ripples in the tight parts
+    #: of a stroke. Depth motion cannot fold, so a legible turn keeps sway well
+    #: below the path's tightest radius. Defaults to 40 % of the amplitude.
+    sway: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -59,6 +101,7 @@ class SceneObject:
     visible: bool = True
     progress: float = 1.0
     transform: Transform = Transform()
+    deform: Deform | None = None
 
     def with_property(self, name: str, value: Any) -> "SceneObject":
         """Return a copy with one animatable property replaced. Pure."""
@@ -71,6 +114,11 @@ class SceneObject:
         if name.startswith("transform."):
             comp = name.split(".", 1)[1]
             return replace(self, transform=replace(self.transform, **{comp: float(value)}))
+        if name.startswith("deform."):
+            if self.deform is None:
+                raise ValueError(f"object {self.id!r} has no deformation to animate")
+            comp = name.split(".", 1)[1]
+            return replace(self, deform=replace(self.deform, **{comp: float(value)}))
         raise ValueError(f"property is not animatable in v1: {name!r}")
 
 
@@ -135,7 +183,7 @@ def parse_color(value: str | None) -> tuple[int, int, int]:
 
 _OBJECT_KEYS = {
     "rect": ("x", "y", "w", "h", "fill"),
-    "path": ("d", "stroke", "stroke_width", "fill"),
+    "path": ("d", "stroke", "stroke_width", "fill", "length"),
     "text": ("content", "x", "y", "font_id", "color", "size"),
 }
 
@@ -146,6 +194,22 @@ def _parse_object(raw: dict[str, Any]) -> SceneObject:
         raise ValueError(f"unsupported object type: {otype!r}")
     props = {k: raw[k] for k in _OBJECT_KEYS[otype] if k in raw}
     tf = raw.get("transform", {})
+
+    deform = None
+    raw_deform = raw.get("deform")
+    if raw_deform is not None:
+        kind = raw_deform.get("type", "sine")
+        if kind not in DEFORMATIONS:
+            raise ValueError(f"unknown deformation: {kind!r}")
+        deform = Deform(
+            type=kind,
+            amplitude=float(raw_deform.get("amplitude", 0.0)),
+            wavelength=float(raw_deform.get("wavelength", 100.0)),
+            phase=float(raw_deform.get("phase", 0.0)),
+            focal=float(raw_deform.get("focal", 520.0)),
+            sway=float(raw_deform.get("sway", float(raw_deform.get("amplitude", 0.0)) * 0.4)),
+        )
+
     return SceneObject(
         id=raw["id"],
         type=otype,
@@ -158,6 +222,7 @@ def _parse_object(raw: dict[str, Any]) -> SceneObject:
             ty=float(tf.get("ty", 0.0)),
             scale=float(tf.get("scale", 1.0)),
         ),
+        deform=deform,
     )
 
 
@@ -184,7 +249,7 @@ def parse_scene(raw: dict[str, Any]) -> Scene:
     animations = []
     for raw_anim in raw.get("animations", []):
         prop = raw_anim["property"]
-        if prop not in ANIMATABLE:
+        if not is_animatable(prop):
             raise ValueError(f"property is not animatable in v1: {prop!r}")
         curve = raw_anim.get("easing", "linear")
         if not easing.is_known(curve):

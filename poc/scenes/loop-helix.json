@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "id": 47,
+  "name": "loop-helix",
+  "width": 480,
+  "height": 320,
+  "fit": "contain",
+  "duration": 8000,
+  "layers": [
+    {
+      "id": "background",
+      "z": 0,
+      "objects": [
+        {
+          "type": "rect",
+          "id": "bg",
+          "x": 0,
+          "y": 0,
+          "w": 480,
+          "h": 320,
+          "fill": "#0c0c11"
+        }
+      ]
+    },
+    {
+      "id": "writing",
+      "z": 10,
+      "objects": [
+        {
+          "type": "path",
+          "id": "loop",
+          "d": "M 40 200 C 60 140 90 130 105 175 C 120 220 100 252 88 236 C 76 220 110 180 150 176 C 190 172 210 200 200 220 C 190 240 170 230 180 205 C 190 180 230 164 260 176 C 290 188 284 216 270 220 C 256 224 250 204 266 190 C 282 176 320 170 344 186 C 368 202 354 236 340 226 C 326 216 350 164 400 160 C 420 158 436 166 446 180",
+          "length": 906.368,
+          "stroke": "#e8e8f0",
+          "stroke_width": 3,
+          "progress": 0,
+          "deform": {
+            "type": "helix",
+            "amplitude": 0,
+            "wavelength": 220,
+            "phase": 0,
+            "focal": 520,
+            "sway": 0
+          }
+        }
+      ]
+    }
+  ],
+  "animations": [
+    {
+      "target": "loop",
+      "property": "progress",
+      "start": 0,
+      "duration": 1600,
+      "from": 0,
+      "to": 1,
+      "easing": "ease-in-out"
+    },
+    {
+      "target": "loop",
+      "property": "deform.amplitude",
+      "start": 1000,
+      "duration": 1400,
+      "from": 0,
+      "to": 34.0,
+      "easing": "ease-out"
+    },
+    {
+      "target": "loop",
+      "property": "deform.sway",
+      "start": 1000,
+      "duration": 1400,
+      "from": 0,
+      "to": 10.0,
+      "easing": "ease-out"
+    },
+    {
+      "target": "loop",
+      "property": "deform.phase",
+      "start": 0,
+      "duration": 8000,
+      "from": 0,
+      "to": 8,
+      "easing": "linear"
+    },
+    {
+      "target": "loop",
+      "property": "deform.amplitude",
+      "start": 5800,
+      "duration": 2200,
+      "from": 34.0,
+      "to": 0,
+      "easing": "ease-in-out"
+    },
+    {
+      "target": "loop",
+      "property": "deform.sway",
+      "start": 5800,
+      "duration": 2200,
+      "from": 10.0,
+      "to": 0,
+      "easing": "ease-in-out"
+    }
+  ]
+}

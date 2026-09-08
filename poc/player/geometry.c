@@ -234,3 +234,219 @@ bool mm_path_parse(const char *d, mm_path_t *out)
     }
     return out->subpath_count > 0;
 }
+
+
+mm_path_t *mm_path_create(const char *d)
+{
+    mm_path_t *path = calloc(1, sizeof(*path));
+    if(path == NULL) return NULL;
+    if(!mm_path_parse(d, path)) {
+        free(path);
+        return NULL;
+    }
+    return path;
+}
+
+void mm_path_destroy(mm_path_t *path)
+{
+    free(path);
+}
+
+/* -- deformation ---------------------------------------------------------- */
+
+static mm_point_t lerp(mm_point_t a, mm_point_t b, float t)
+{
+    mm_point_t out = { a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t };
+    return out;
+}
+
+int mm_subpath_flatten(const mm_subpath_t *subpath, mm_point_t *out, int max_points)
+{
+    if(subpath == NULL || out == NULL || max_points < 1) return 0;
+
+    int count = 0;
+    out[count++] = subpath->start;
+    mm_point_t from = subpath->start;
+
+    for(int i = 0; i < subpath->segment_count; i++) {
+        const mm_segment_t *segment = &subpath->segments[i];
+        const int steps = steps_for(from, segment);
+        for(int j = 1; j <= steps && count < max_points; j++) {
+            const float t = (float)j / (float)steps;
+            const float u = 1.0f - t;
+            const float a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+            mm_point_t point = {
+                a * from.x + b * segment->c1.x + c * segment->c2.x + d * segment->to.x,
+                a * from.y + b * segment->c1.y + c * segment->c2.y + d * segment->to.y,
+            };
+            out[count++] = point;
+        }
+        from = segment->to;
+    }
+    return count;
+}
+
+static float polyline_length(const mm_point_t *points, int count)
+{
+    float total = 0.0f;
+    for(int i = 0; i < count - 1; i++) total += point_distance(points[i], points[i + 1]);
+    return total;
+}
+
+int mm_polyline_trim(const mm_point_t *points, int count, float length,
+                     mm_point_t *out, int max_points)
+{
+    if(points == NULL || out == NULL || count < 2 || length <= 0.0f) return 0;
+
+    int written = 0;
+    out[written++] = points[0];
+    float walked = 0.0f;
+
+    for(int i = 0; i < count - 1 && written < max_points; i++) {
+        const float segment = point_distance(points[i], points[i + 1]);
+        if(segment <= 0.0f) continue;
+        if(walked + segment >= length) {
+            out[written++] = lerp(points[i], points[i + 1], (length - walked) / segment);
+            return written;
+        }
+        walked += segment;
+        out[written++] = points[i + 1];
+    }
+    return written;
+}
+
+float mm_perspective_scale(float z, float focal)
+{
+    const float denominator = focal - z;
+    if(denominator <= 1e-6f) return 1.0f;
+    return focal / denominator;
+}
+
+float mm_band_depth(int band)
+{
+    return ((float)band + 0.5f) / (float)MM_HELIX_BANDS;
+}
+
+int mm_band_of(float t)
+{
+    const int index = (int)(t * (float)MM_HELIX_BANDS);
+    if(index < 0) return 0;
+    if(index >= MM_HELIX_BANDS) return MM_HELIX_BANDS - 1;
+    return index;
+}
+
+int mm_polyline_deform(const mm_point_t *points, int count, float length,
+                       const mm_deform_t *deform, float centre_x, float centre_y,
+                       const mm_ripple_t *ripples, int ripple_count, float scene_time_ms,
+                       float distance_offset,
+                       mm_point_t *out, float *depth_out, int max_points)
+{
+    /* Trim first: `progress` is measured on the undeformed path, so the reveal
+     * and the deformation are independent -- the wave rides on the stroke
+     * rather than changing how much of it has been drawn. */
+    static mm_point_t trimmed[MM_MAX_POINTS];
+    const int trimmed_count = mm_polyline_trim(points, count, length, trimmed, MM_MAX_POINTS);
+    if(trimmed_count < 2) return 0;
+
+    const float total = polyline_length(trimmed, trimmed_count);
+    if(total <= 0.0f) return 0;
+
+    int samples = (int)ceilf(total / MM_DEFORM_SAMPLE_STEP) + 1;
+    if(samples < 2) samples = 2;
+    if(samples > max_points) samples = max_points;
+
+    /* Resample uniformly by arc length, always reaching the final point. */
+    int index = 0;
+    float walked = 0.0f;
+    float segment = point_distance(trimmed[0], trimmed[1]);
+
+    static mm_point_t resampled[MM_MAX_POINTS];
+    static float distances[MM_MAX_POINTS];
+
+    for(int i = 0; i < samples; i++) {
+        const float target = total * (float)i / (float)(samples - 1);
+        while(index < trimmed_count - 2 && walked + segment < target) {
+            walked += segment;
+            index++;
+            segment = point_distance(trimmed[index], trimmed[index + 1]);
+        }
+        const float t = segment <= 0.0f ? 0.0f : (target - walked) / segment;
+        resampled[i] = lerp(trimmed[index], trimmed[index + 1], t);
+        distances[i] = target;
+    }
+
+    const bool has_deform = deform != NULL && deform->wavelength > 0.0f &&
+                            deform->amplitude != 0.0f &&
+                            (deform->type == MM_DEFORM_SINE || deform->type == MM_DEFORM_HELIX);
+    const bool has_ripples = ripples != NULL && ripple_count > 0;
+
+    if(!has_deform && !has_ripples) {
+        for(int i = 0; i < samples; i++) {
+            out[i] = resampled[i];
+            if(depth_out != NULL) depth_out[i] = 1.0f;
+        }
+        return samples;
+    }
+
+    if(!has_deform) {
+        /* Ripples alone: displace along the normal, no wave and no depth. */
+        for(int i = 0; i < samples; i++) {
+            const mm_point_t previous = resampled[i > 0 ? i - 1 : 0];
+            const mm_point_t following = resampled[i < samples - 1 ? i + 1 : samples - 1];
+            const float dx = following.x - previous.x, dy = following.y - previous.y;
+            const float len = sqrtf(dx * dx + dy * dy);
+            const float offset = mm_ripple_total(ripples, ripple_count,
+                                                 distance_offset + distances[i], scene_time_ms);
+            out[i] = resampled[i];
+            if(len > 1e-9f && offset != 0.0f) {
+                out[i].x += (-dy / len) * offset;
+                out[i].y += (dx / len) * offset;
+            }
+            if(depth_out != NULL) depth_out[i] = 1.0f;
+        }
+        return samples;
+    }
+
+    const bool helix = deform->type == MM_DEFORM_HELIX;
+    const float focal = deform->focal > 0.0f ? deform->focal : MM_HELIX_FOCAL;
+    const float amplitude = deform->amplitude < 0.0f ? -deform->amplitude : deform->amplitude;
+    const float near_k = mm_perspective_scale(amplitude, focal);
+    const float far_k = mm_perspective_scale(-amplitude, focal);
+    const float span = near_k - far_k;
+
+    for(int i = 0; i < samples; i++) {
+        const mm_point_t previous = resampled[i > 0 ? i - 1 : 0];
+        const mm_point_t following = resampled[i < samples - 1 ? i + 1 : samples - 1];
+        const float dx = following.x - previous.x, dy = following.y - previous.y;
+        const float len = sqrtf(dx * dx + dy * dy);
+        const float theta =
+            2.0f * (float)M_PI * (distances[i] / deform->wavelength + deform->phase);
+
+        /* Only the in-plane part can fold a curve, so a helix moves across
+         * the picture by `sway` and into it by `amplitude`. */
+        float across = helix ? deform->sway : deform->amplitude;
+        across = across * sinf(theta) +
+                 (has_ripples ? mm_ripple_total(ripples, ripple_count,
+                                                distance_offset + distances[i], scene_time_ms)
+                              : 0.0f);
+        float x = resampled[i].x, y = resampled[i].y;
+        if(len > 1e-9f && across != 0.0f) {
+            x += (-dy / len) * across;
+            y += (dx / len) * across;
+        }
+
+        if(!helix) {
+            out[i].x = x;
+            out[i].y = y;
+            if(depth_out != NULL) depth_out[i] = 1.0f;
+            continue;
+        }
+
+        const float z = deform->amplitude * cosf(theta);
+        const float k = mm_perspective_scale(z, focal);
+        out[i].x = centre_x + (x - centre_x) * k;
+        out[i].y = centre_y + (y - centre_y) * k;
+        if(depth_out != NULL) depth_out[i] = span <= 1e-9f ? 1.0f : (k - far_k) / span;
+    }
+    return samples;
+}

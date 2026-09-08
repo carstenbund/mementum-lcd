@@ -23,6 +23,9 @@ from typing import Any
 
 __all__ = [
     "AssetReply",
+    "Position",
+    "RippleCommand",
+    "Touch",
     "AssetRequest",
     "Capabilities",
     "DISPLAY_LEAD_MS",
@@ -88,12 +91,29 @@ class Capabilities:
 
 
 @dataclass(frozen=True)
+class Position:
+    """Where a unit stands in the installation, in metres.
+
+    Only needed for touch propagation: it is what lets a gesture cross the room
+    at a chosen speed rather than appearing everywhere at once. A node without
+    one still plays scenes; it simply has no neighbours.
+    """
+
+    x: float = 0.0
+    y: float = 0.0
+
+    def distance_to(self, other: "Position") -> float:
+        return ((self.x - other.x) ** 2 + (self.y - other.y) ** 2) ** 0.5
+
+
+@dataclass(frozen=True)
 class NodeDescriptor:
     node_id: str
     device: str
     roles: tuple[str, ...]
     display: Display
     capabilities: Capabilities = Capabilities()
+    position: Position | None = None
 
 
 # -- the schedule, as state ----------------------------------------------
@@ -194,6 +214,35 @@ class Ready:
     node_id: str
     scene_id: int
     scene_hash: str
+
+
+@dataclass(frozen=True)
+class Touch:
+    """Somebody touched a unit. Node to sequencer, over the same unicast
+    binding as everything else."""
+
+    node_id: str
+    x: float
+    y: float
+    at: float
+    strength: float = 1.0
+
+
+@dataclass(frozen=True)
+class RippleCommand:
+    """Sequencer to node: start this ripple at this shared time.
+
+    Transient, so unlike the schedule it is not state: a node that misses the
+    push does not ripple, and nothing needs to recover. A ripple is over long
+    before the next heartbeat."""
+
+    origin_node: str
+    x: float
+    y: float
+    start_at: float
+    amplitude: float
+    strength: float = 1.0
+    seq: int = 0
 
 
 @dataclass(frozen=True)

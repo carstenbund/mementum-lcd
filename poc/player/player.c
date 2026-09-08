@@ -2,7 +2,9 @@
 
 #include "easing.h"
 #include "evaluator.h"
+#include "geometry.h"
 #include "render_lvgl.h"
+#include "ripple.h"
 #include "scene_json.h"
 
 #include "lvgl.h"
@@ -19,6 +21,8 @@ struct mm_player {
     lv_obj_t *canvas;
     lv_draw_buf_t *draw_buf;
     uint8_t *display_buf;
+    mm_ripple_t ripples[MM_MAX_RIPPLES];
+    int ripple_count;
 };
 
 static char g_error[256] = "";
@@ -97,6 +101,10 @@ mm_player_t *mm_player_load(const char *scene_json, int width, int height)
 void mm_player_destroy(mm_player_t *player)
 {
     if(player == NULL) return;
+    for(int i = 0; i < player->scene.object_count; i++) {
+        mm_path_destroy(player->scene.objects[i].path);
+        player->scene.objects[i].path = NULL;
+    }
     if(player->canvas != NULL) lv_obj_delete(player->canvas);
     if(player->display != NULL) lv_display_delete(player->display);
     if(player->draw_buf != NULL) lv_draw_buf_destroy(player->draw_buf);
@@ -120,10 +128,21 @@ int mm_player_render(mm_player_t *player, double scene_time_ms, uint8_t *out, si
      * time twice gives the same frame and rendering out of order is harmless. */
     mm_evaluate(&player->scene, (float)scene_time_ms);
 
+    /* Drop ripples whose moment has passed. They are transient by design: a
+     * missed one is simply not shown, and nothing has to recover. */
+    mm_ripple_t live[MM_MAX_RIPPLES];
+    int live_count = 0;
+    for(int i = 0; i < player->ripple_count; i++) {
+        if(mm_ripple_active(&player->ripples[i], (float)scene_time_ms)) {
+            live[live_count++] = player->ripples[i];
+        }
+    }
+
     lv_canvas_fill_bg(player->canvas, lv_color_hex(0x000000), LV_OPA_COVER);
     lv_layer_t layer;
     lv_canvas_init_layer(player->canvas, &layer);
-    mm_render_scene(&layer, &player->scene, player->width, player->height);
+    mm_render_scene(&layer, &player->scene, player->width, player->height,
+                    live, live_count, (float)scene_time_ms);
     lv_canvas_finish_layer(player->canvas, &layer);
 
     /* ARGB8888 is B,G,R,A in memory on a little-endian host; the caller wants
@@ -136,6 +155,39 @@ int mm_player_render(mm_player_t *player, double scene_time_ms, uint8_t *out, si
         out[i + 3] = src[i + 3];
     }
     return 0;
+}
+
+int mm_player_add_ripple(mm_player_t *player, double origin, double start_scene_time,
+                         double amplitude, double wavelength, double speed,
+                         double life_ms, double width)
+{
+    if(player == NULL) {
+        set_error("no player");
+        return -1;
+    }
+    if(player->ripple_count >= MM_MAX_RIPPLES) {
+        for(int i = 1; i < MM_MAX_RIPPLES; i++) player->ripples[i - 1] = player->ripples[i];
+        player->ripple_count = MM_MAX_RIPPLES - 1;
+    }
+    mm_ripple_t *ripple = &player->ripples[player->ripple_count++];
+    ripple->origin = (float)origin;
+    ripple->start = (float)start_scene_time;
+    ripple->amplitude = (float)amplitude;
+    ripple->wavelength = (float)wavelength;
+    ripple->speed = (float)speed;
+    ripple->life_ms = (float)life_ms;
+    ripple->width = (float)width;
+    return 0;
+}
+
+int mm_player_ripple_count(const mm_player_t *player)
+{
+    return player != NULL ? player->ripple_count : 0;
+}
+
+void mm_player_clear_ripples(mm_player_t *player)
+{
+    if(player != NULL) player->ripple_count = 0;
 }
 
 /* -- introspection --------------------------------------------------------- */
@@ -184,6 +236,13 @@ double mm_player_property_at(const mm_player_t *player, const char *object_id,
     if(strcmp(property, "opacity") == 0)  return object->opacity;
     if(strcmp(property, "progress") == 0) return object->progress;
     if(strcmp(property, "visible") == 0)  return object->visible ? 1.0 : 0.0;
+    if(strcmp(property, "transform.tx") == 0)    return object->transform.tx;
+    if(strcmp(property, "transform.ty") == 0)    return object->transform.ty;
+    if(strcmp(property, "transform.scale") == 0) return object->transform.scale;
+    if(strcmp(property, "deform.amplitude") == 0)  return object->deform.amplitude;
+    if(strcmp(property, "deform.wavelength") == 0) return object->deform.wavelength;
+    if(strcmp(property, "deform.phase") == 0)      return object->deform.phase;
+    if(strcmp(property, "deform.sway") == 0)       return object->deform.sway;
     return -1.0;
 }
 

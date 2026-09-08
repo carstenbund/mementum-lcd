@@ -9,10 +9,12 @@
 #define MM_RENDER_LVGL_H
 
 #include "scene_model.h"
+#include "ripple.h"
 
 #include "lvgl.h"
 
 /** Composite an *already evaluated* scene into a canvas layer. */
-void mm_render_scene(lv_layer_t *layer, const mm_scene_t *scene, int out_w, int out_h);
+void mm_render_scene(lv_layer_t *layer, const mm_scene_t *scene, int out_w, int out_h,
+                     const mm_ripple_t *ripples, int ripple_count, float scene_time_ms);
 
 #endif /* MM_RENDER_LVGL_H */

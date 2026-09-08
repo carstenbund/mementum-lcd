@@ -16,7 +16,21 @@ from __future__ import annotations
 
 from .font5x7 import ADVANCE, CELL_H, CELL_W, resolve_font
 from .framebuffer import Frame
-from .geometry import flatten_path, trim_polyline
+from .geometry import (
+    HELIX_BANDS,
+    HELIX_SHADE_FAR,
+    normal_offsets,
+    ripple_offsets,
+    band_depth,
+    band_of,
+    deform_helix,
+    deform_sine,
+    flatten_path,
+    perspective_scale,
+    polyline_length,
+    resample_polyline,
+    trim_polyline,
+)
 from .raster import fill_polygons, stroke_polyline
 from .scene import Scene, SceneObject, Transform, parse_color
 
@@ -28,7 +42,7 @@ _BACKGROUND = (0, 0, 0, 255)
 class Viewport:
     """Maps design-canvas coordinates onto a node's display (``fit`` policy)."""
 
-    __slots__ = ("scale_x", "scale_y", "offset_x", "offset_y", "width", "height")
+    __slots__ = ("scale_x", "scale_y", "offset_x", "offset_y", "width", "height", "centre")
 
     def __init__(self, scene_w: int, scene_h: int, out_w: int, out_h: int, fit: str = "contain"):
         self.width, self.height = out_w, out_h
@@ -43,6 +57,8 @@ class Viewport:
             raise ValueError(f"unsupported fit policy: {fit!r}")
         self.offset_x = (out_w - scene_w * self.scale_x) / 2.0
         self.offset_y = (out_h - scene_h * self.scale_y) / 2.0
+        #: The vanishing point for a helical deformation, in design units.
+        self.centre = (scene_w / 2.0, scene_h / 2.0)
 
     def point(self, x: float, y: float) -> tuple[float, float]:
         return (self.offset_x + x * self.scale_x, self.offset_y + y * self.scale_y)
@@ -76,20 +92,124 @@ def _render_rect(frame: Frame, obj: SceneObject, viewport: Viewport, alpha: floa
     fill_polygons(frame, [poly], rgb, alpha)
 
 
-def _render_path(frame: Frame, obj: SceneObject, viewport: Viewport, alpha: float) -> None:
+def _render_path(
+    frame: Frame,
+    obj: SceneObject,
+    viewport: Viewport,
+    alpha: float,
+    ripples: tuple = (),
+    scene_time: float = 0.0,
+) -> None:
     to_device, tf_scale = _object_transform(obj, viewport)
     progress = min(1.0, max(0.0, obj.progress))
     if progress <= 0.0:
         return
     width = viewport.length(float(obj.props.get("stroke_width", 1.0)) * tf_scale)
     rgb = parse_color(obj.props.get("stroke"))
+    subpaths = flatten_path(obj.props["d"])
+
+    # `progress` is the fraction of the total *ordered* drawing length: one pen
+    # trajectory across every stroke in turn, with nothing drawn during the
+    # lift between them. Applying it to each subpath independently would grow
+    # every letter at once, which is a light show rather than handwriting.
+    #
+    # Declared lengths win when the composer provides them, so no player has to
+    # reproduce anyone else's flattening (decision 0004).
+    declared = obj.props.get("subpaths")
+    lengths = (
+        [float(value) for value in declared]
+        if declared and len(declared) == len(subpaths)
+        else [polyline_length(subpath) for subpath in subpaths]
+    )
+    total = float(obj.props.get("length") or 0.0) or sum(lengths)
+    target = total * progress
+    walked = 0.0
+
     polys = []
-    for subpath in flatten_path(obj.props["d"]):
-        drawn = trim_polyline(subpath, progress)
+    for subpath, length in zip(subpaths, lengths):
+        if walked >= target:
+            break
+        share = (
+            1.0 if progress >= 1.0 or length <= 0.0
+            else min(1.0, (target - walked) / length)
+        )
+        started_at = walked          # where this stroke sits along the path
+        walked += length
+        drawn = trim_polyline(subpath, share)
         if len(drawn) < 2:
             continue
-        polys.extend(stroke_polyline([to_device(x, y) for x, y in drawn], width))
+
+        if obj.deform is None and not ripples:
+            polys.extend(stroke_polyline([to_device(x, y) for x, y in drawn], width))
+            continue
+
+        # A deformation or a live ripple needs the stroke sampled evenly first.
+        samples = resample_polyline(drawn)
+        extra = ripple_offsets(samples, ripples, scene_time, started_at) if ripples else None
+
+        if obj.deform is not None and obj.deform.type == "helix":
+            _render_helix(frame, obj, viewport, alpha, samples, width, rgb, to_device, extra)
+            continue
+
+        if obj.deform is not None:
+            shaped = deform_sine(
+                samples, obj.deform.amplitude, obj.deform.wavelength, obj.deform.phase
+            )
+            if extra is not None:
+                shaped = normal_offsets(
+                    [(point, distance) for point, (_, distance) in zip(shaped, samples)],
+                    extra,
+                )
+        else:
+            shaped = normal_offsets(samples, extra)
+        polys.extend(stroke_polyline([to_device(x, y) for x, y in shaped], width))
+
     fill_polygons(frame, polys, rgb, alpha)
+
+
+def _render_helix(frame, obj, viewport, alpha, samples, width, rgb, to_device, extra=None) -> None:
+    """Draw a helically deformed stroke, far band first.
+
+    A stroke width belongs to a path, not to a point — here and on the device
+    alike — so depth is expressed by drawing the stroke once per band, each with
+    its own width and brightness. Eight bands is enough to read as continuous
+    and few enough to stay cheap.
+    """
+    deform = obj.deform
+    projected = deform_helix(
+        samples,
+        deform.amplitude,
+        deform.wavelength,
+        deform.phase,
+        viewport.centre,
+        deform.focal,
+        deform.sway,
+        extra,
+    )
+    if len(projected) < 2:
+        return
+
+    near = perspective_scale(abs(deform.amplitude), deform.focal)
+    far = perspective_scale(-abs(deform.amplitude), deform.focal)
+
+    bands: dict[int, list] = {}
+    for (point_a, t_a), (point_b, t_b) in zip(projected, projected[1:]):
+        bands.setdefault(band_of((t_a + t_b) / 2.0), []).append((point_a, point_b))
+
+    for band in sorted(bands):
+        t = band_depth(band)
+        scale = far + t * (near - far)
+        shade = HELIX_SHADE_FAR + (1.0 - HELIX_SHADE_FAR) * t
+        polys = []
+        for point_a, point_b in bands[band]:
+            polys.extend(
+                stroke_polyline(
+                    [to_device(*point_a), to_device(*point_b)], width * scale
+                )
+            )
+        fill_polygons(
+            frame, polys, tuple(int(channel * shade + 0.5) for channel in rgb), alpha
+        )
 
 
 def _text_polygons(font, text: str, x: float, y: float, unit: float, to_device):
@@ -155,6 +275,8 @@ def render_scene(
     width: int | None = None,
     height: int | None = None,
     frame: Frame | None = None,
+    ripples: tuple = (),
+    scene_time: float = 0.0,
 ) -> Frame:
     """Composite an *already evaluated* scene into an RGBA frame.
 
@@ -180,5 +302,8 @@ def render_scene(
             renderer = _RENDERERS.get(obj.type)
             if renderer is None:
                 raise ValueError(f"no renderer for object type {obj.type!r}")
-            renderer(frame, obj, viewport, alpha)
+            if obj.type == "path" and ripples:
+                _render_path(frame, obj, viewport, alpha, ripples, scene_time)
+            else:
+                renderer(frame, obj, viewport, alpha)
     return frame

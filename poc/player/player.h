@@ -33,6 +33,19 @@ void mm_player_destroy(mm_player_t *player);
  *  `out` must hold width * height * 4 bytes. */
 int mm_player_render(mm_player_t *player, double scene_time_ms, uint8_t *out, size_t out_size);
 
+/** Start a ripple on this unit. Runtime state, not scene content: it comes
+ *  from a finger on this panel or from the sequencer relaying somebody else's.
+ *  The oldest is dropped once the unit is holding its limit. */
+int mm_player_add_ripple(mm_player_t *player, double origin, double start_scene_time,
+                         double amplitude, double wavelength, double speed,
+                         double life_ms, double width);
+
+/** How many ripples this player is currently holding. */
+int mm_player_ripple_count(const mm_player_t *player);
+
+/** Discard them all. */
+void mm_player_clear_ripples(mm_player_t *player);
+
 /** Why the last call failed. Never NULL. */
 const char *mm_player_error(void);
 

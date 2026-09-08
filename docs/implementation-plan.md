@@ -5,6 +5,14 @@ The proposal says *what* and *why*; this document says *what to build, in what
 order, and how we know it worked*. Section references (§n) point into the
 proposal.
 
+**What is being built.** Mementum is a synchronized symbolic display system.
+Its authored content is vector symbols and their transformation over time;
+text is a supporting capability for captions and labels
+([decision 0005](decisions/0005-symbols-are-the-payload.md)). Where this plan
+says "scene", the payload it has in mind is a symbol with named parts being
+revealed, moved and combined on a shared clock — not a message being
+scrolled.
+
 **Status.** Phase 0c is built: the participant core (`mementum_node/core/`)
 and the simulation harness (`sim/`) exist, the six scenarios pass, and the
 Phase 0c gate runs in CI without hardware — see
@@ -335,9 +343,11 @@ mementum-lcd/
 }
 ```
 
-Text is in the scene from the first experiment on purpose (§9). If glyph
-rendering turns out to be the expensive part, that must surface now, not at
-Phase 4.
+Text is in the scene from the first experiment so that glyph cost surfaces
+early rather than at Phase 4 — but it is a *supporting* content type
+([decision 0005](decisions/0005-symbols-are-the-payload.md)), and this scene
+exercises reveal well and symbolic structure not at all. A second fixture with
+named parts is needed before the symbol model can be called tested.
 
 ### 0.3 Bring-up order — host first, then hardware
 
@@ -541,6 +551,24 @@ drm_scene_ir/                    (own repo, cloned by drm_stack/setup.sh —
 ```
 
 ### 1.2 Content
+
+Priorities, from [decision 0005](decisions/0005-symbols-are-the-payload.md):
+
+```text
+essential:  vector symbol, named parts, path reveal,
+            transforms (including rotation), opacity, layering, timing
+important:  images, font/text
+later:      sophisticated typography, Lottie, arbitrary SVG animation
+```
+
+`transform.rotate` does not exist in either player today and is essential
+rather than later — "rotate the whole symbol" is in the vocabulary the project
+has committed to.
+
+Interaction is not on this list on purpose. It is a **second layer, discovered
+rather than advertised** ([decision 0008](decisions/0008-two-layers.md)): the
+animation must be complete with nobody present, and nothing about touch may
+reach the scene or the shared timeline.
 
 Exactly the v1 set (§6): `Scene`, `Layer`, `Rect`, `Text`, `Image`, `Path`,
 `Transform`, `Opacity`, `Animation`. No SVG node. `Circle`, `Group`, `Clip` only

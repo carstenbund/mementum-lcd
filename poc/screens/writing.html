@@ -1,0 +1,21 @@
+<!-- Six words from one page of handwriting, each written, held, and gone.
+     Compile with tools/compose.py, writing the scene to poc/scenes/du-kannst.json -->
+<screen width="450" height="250" name="du-kannst" id="80">
+
+  <layer id="background" z="0">
+    <box x="0" y="0" w="450" h="250" color="#0c0c11" />
+  </layer>
+
+  <layer id="writing" z="10">
+    <writing src="../../assets/svg-source/path1.svg"
+             words="du kannst werden was du willst"
+             stroke="#e8e8f0" stroke-width="8">
+      <word name="du"     draw="1.4s" seen="2s" exit="0.6s" gap="0.25s" />
+      <word name="kannst" draw="1.4s" seen="2s" exit="0.6s" gap="0.25s" />
+      <word name="werden" draw="1.4s" seen="2s" exit="0.6s" gap="0.25s" />
+      <word name="was"    draw="1.4s" seen="2s" exit="0.6s" gap="0.25s" />
+      <word name="du"     draw="1.4s" seen="2s" exit="0.6s" gap="0.25s" />
+      <word name="willst" draw="1.4s" seen="2s" exit="0.6s" />
+    </writing>
+  </layer>
+</screen>

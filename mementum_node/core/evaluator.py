@@ -11,8 +11,13 @@ there by stepping -- which is what makes a dropped frame, a missed PLAY and a
 late join the same problem with one answer.
 
 Hold semantics: before an animation starts the property holds ``from``; after it
-ends it holds ``to``. Animations are applied in declaration order, so two
-animations on the same property compose predictably (last one wins).
+ends it holds ``to``.
+
+Where several animations drive the same property, the one that applies is the
+last, in declaration order, whose ``start`` has been reached -- so a phase list
+(build up, then decay) works, and a property with no animation yet started
+keeps its authored value (decision 0006). Blending overlapping animations is
+deliberately not a thing in v1.
 """
 
 from __future__ import annotations
@@ -42,9 +47,19 @@ def evaluate(scene: Scene, scene_time: float) -> Scene:
     if not scene.animations:
         return scene
 
-    resolved: dict[str, dict[str, float]] = {}
+    # Pick the governing animation per (object, property) before evaluating
+    # any of them: the last one to have started wins, and one that has not
+    # started yet must not impose its ``from`` value on earlier phases.
+    governing: dict[str, dict[str, Animation]] = {}
     for anim in scene.animations:
-        resolved.setdefault(anim.target, {})[anim.property] = value_at(anim, scene_time)
+        if anim.start > scene_time:
+            continue
+        governing.setdefault(anim.target, {})[anim.property] = anim
+
+    resolved: dict[str, dict[str, float]] = {
+        target: {prop: value_at(anim, scene_time) for prop, anim in props.items()}
+        for target, props in governing.items()
+    }
 
     layers: list[Layer] = []
     for layer in scene.layers:

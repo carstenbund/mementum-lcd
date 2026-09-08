@@ -68,6 +68,10 @@ static mm_property_t property_from_name(const char *name)
     if(strcmp(name, "transform.tx") == 0)     return MM_PROP_TRANSFORM_TX;
     if(strcmp(name, "transform.ty") == 0)     return MM_PROP_TRANSFORM_TY;
     if(strcmp(name, "transform.scale") == 0)  return MM_PROP_TRANSFORM_SCALE;
+    if(strcmp(name, "deform.amplitude") == 0)  return MM_PROP_DEFORM_AMPLITUDE;
+    if(strcmp(name, "deform.wavelength") == 0) return MM_PROP_DEFORM_WAVELENGTH;
+    if(strcmp(name, "deform.phase") == 0)      return MM_PROP_DEFORM_PHASE;
+    if(strcmp(name, "deform.sway") == 0)       return MM_PROP_DEFORM_SWAY;
     return MM_PROP_UNKNOWN;
 }
 
@@ -113,21 +117,45 @@ static bool parse_object(const cJSON *raw, mm_object_t *object, char *error, siz
             fail(error, error_size, "path %s has no d", object->id);
             return false;
         }
-        copy_string(object->d, sizeof(object->d), d, "");
         object->stroke = parse_color(raw, "stroke", white);
         object->stroke_width = number_or(raw, "stroke_width", 1.0f);
         object->progress = number_or(raw, "progress", 1.0f);
 
-        mm_path_t path;
-        if(!mm_path_parse(object->d, &path)) {
-            fail(error, error_size, "path %s: unsupported path data", object->id);
+        object->path = mm_path_create(d->valuestring);
+        if(object->path == NULL) {
+            fail(error, error_size,
+                 "path %s: unsupported path data, or beyond the player's bounds "
+                 "(%d subpaths, %d segments each)",
+                 object->id, MM_MAX_SUBPATHS, MM_MAX_SEGMENTS);
             return false;
         }
+        const mm_path_t path = *object->path;
         /* The composer's length wins when it provides one: measured once,
          * agreed by every player, and no flattening pass on the device. */
         const cJSON *declared = cJSON_GetObjectItemCaseSensitive(raw, "length");
         object->length_declared = cJSON_IsNumber(declared);
         object->length = object->length_declared ? (float)declared->valuedouble : path.length;
+
+        const cJSON *deform = cJSON_GetObjectItemCaseSensitive(raw, "deform");
+        if(cJSON_IsObject(deform)) {
+            const cJSON *kind = cJSON_GetObjectItemCaseSensitive(deform, "type");
+            const char *name = cJSON_IsString(kind) ? kind->valuestring : "sine";
+            if(strcmp(name, "sine") == 0) {
+                object->deform.type = MM_DEFORM_SINE;
+            }
+            else if(strcmp(name, "helix") == 0) {
+                object->deform.type = MM_DEFORM_HELIX;
+            }
+            else {
+                fail(error, error_size, "unknown deformation: %s", name);
+                return false;
+            }
+            object->deform.amplitude = number_or(deform, "amplitude", 0.0f);
+            object->deform.wavelength = number_or(deform, "wavelength", 100.0f);
+            object->deform.phase = number_or(deform, "phase", 0.0f);
+            object->deform.focal = number_or(deform, "focal", MM_HELIX_FOCAL);
+            object->deform.sway = number_or(deform, "sway", object->deform.amplitude * 0.4f);
+        }
 
         object->subpath_count = path.subpath_count;
         const cJSON *subpaths = cJSON_GetObjectItemCaseSensitive(raw, "subpaths");
@@ -162,6 +190,13 @@ static bool parse_object(const cJSON *raw, mm_object_t *object, char *error, siz
         object->transform.ty = number_or(transform, "ty", 0.0f);
         object->transform.scale = number_or(transform, "scale", 1.0f);
     }
+
+    /* Remember what the scene said, so evaluation can always start from it. */
+    object->authored.opacity = object->opacity;
+    object->authored.progress = object->progress;
+    object->authored.visible = object->visible;
+    object->authored.transform = object->transform;
+    object->authored.deform = object->deform;
     return true;
 }
 

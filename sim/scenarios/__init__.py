@@ -22,6 +22,7 @@ NAMES = (
     "clock_jitter",
     "fanout_scale",
     "mixed_renderers",
+    "linewave",
 )
 
 
