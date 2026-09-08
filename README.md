@@ -1,7 +1,14 @@
 # mementum-lcd
 
-Continuation of the Mementum project with an LCD scene player: synchronized
-vector scenes played across ESP32 panels and Linux nodes from one shared clock.
+A synchronized symbolic display system. Vector symbols — memes as animated
+objects with internal structure — revealed, transformed and combined on one
+shared clock across ESP32 panels, Raspberry Pi displays and a stream.
+
+```text
+Mementum LED          Mementum LCD
+  text is the payload    symbols are the payload
+  movement is scrolling  movement is composition
+```
 
 * [`todo.md`](todo.md) — the architecture proposal (what and why).
 * [`docs/implementation-plan.md`](docs/implementation-plan.md) — what to build,
@@ -18,16 +25,37 @@ hardware.
 mementum_node/core/   the real participant core — model, evaluator, renderer,
                       protocol, cache, clock, pacers, sequencer
 mementum_node/players/  the C/LVGL player, bound with ctypes
-poc/player/           that player's C sources, shared with the ESP-IDF build
+mementum_node/screen/   the screen, adapted from drm_screen + drm_screen_lvgl
+poc/player/           that player's C sources, shared with the ESP-IDF build —
+                      also what drm_screen_lvgl binds
 sim/                  the three substitutions (clock, transport, sink),
                       the harness, and the scenarios
 poc/scenes/           the hand-written test scene
 tests/                the Phase 0c gate, in CI
+docs/step-report.md        where the project stands
+poc/screens/               screen-HTML with a timeline — the authoring layer
 docs/phase0c-report.md     measured (simulated) numbers
 docs/phase0c-protocol.md   the test run, for the record
 poc/host-player/           LVGL/ThorVG player on Linux — the R1 experiment
 docs/phase0-host-protocol.md  that experiment, and what follows from it
 docs/phase0-c-player-protocol.md  the C player, and the mixed swarm
+docs/playbooks/linewave.md    the next test: one line, coming in and waving out
+docs/decisions/0011-one-stack-two-devices.md  how this repo sits in drm_stack
+```
+
+**The screen is the stack's.** `drm_screen` owns the layer model, the command
+records and the service; `drm_screen_lvgl` is the LVGL renderer plugin, binding
+the C in `poc/player/`; `drm_composer` compiles screen-HTML, and a layer of
+`<path>` elements compiles to a *scene document* rather than a bitmap. That
+document is `drm_scene_ir` — the same bytes the ESP32 player loads — so the
+composer targets a panel without running on one: compile on a host, ship a
+couple of kilobytes, and the C draws it. See
+[decision 0011](docs/decisions/0011-one-stack-two-devices.md).
+
+```bash
+pip install -e ~/code/drm_screen_lvgl        # or: pip install -r requirements-dev.txt
+make -C poc/host-player -j4 lib              # builds libdrm_screen_lvgl.so too
+python poc/screen_demo.py poc/scenes/du-kannst.json 10 drm
 ```
 
 The rule the simulator obeys, and the reason it is worth anything: **a

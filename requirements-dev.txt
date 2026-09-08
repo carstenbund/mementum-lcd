@@ -1,3 +1,10 @@
 # Phase 0c harness. The core and the simulator are stdlib-only by design:
 # nothing here is imported by mementum_node/ or sim/ at runtime.
 pytest==9.1.1
+
+# The screen. `drm_screen_lvgl` is the LVGL renderer plugin -- it binds the C in
+# poc/player/, so this repository is where its library is built. `drm_screen`
+# brings the service and the numpy compositor and is optional: a node without it
+# runs mementum_node.screen.service.SimpleScreenService instead.
+drm-screen-lvgl @ git+https://github.com/carstenbund/drm_screen_lvgl
+drm-screen ; python_version >= "3.10"
