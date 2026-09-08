@@ -31,6 +31,11 @@
 #define LV_USE_THORVG_INTERNAL      1
 
 #define LV_USE_CANVAS               1
+
+/* Output straight to DRM: LVGL standing where drm_display stands, so the
+ * screen receives primitives rather than a rasterised buffer. */
+#define LV_USE_LINUX_DRM            1
+#define LV_LINUX_DRM_GBM_BUFFERS    0
 #define LV_USE_LABEL                1
 
 /* Font assets. Montserrat stands in until the asset plane carries preprocessed

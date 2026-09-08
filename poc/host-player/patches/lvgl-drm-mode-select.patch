@@ -1,0 +1,61 @@
+From: mementum-lcd
+Subject: lv_linux_drm: pick a mode by size, not always the first one
+
+The non-EGL DRM backend takes conn->modes[0] and offers no way to choose
+another: lv_linux_drm_set_mode_cb() logs "DRM without EGL support doesn't
+currently support setting a mode selection callback" and does nothing. On a
+connector whose first mode is not the one wanted -- a 1280x800 virtual
+connector that also offers 1920x1080 -- there is no way to reach the rest.
+
+Honour LV_DRM_MODE=WxH when it is set: scan the connector's mode list for a
+match and fall back to modes[0]. Nothing changes when it is unset.
+
+Applied by fetch-lvgl.sh; upstream this if it survives contact.
+---
+--- a/src/drivers/display/drm/lv_linux_drm.c
++++ b/src/drivers/display/drm/lv_linux_drm.c
+@@ -9,6 +9,9 @@
+ #include "lv_linux_drm.h"
+ #if LV_USE_LINUX_DRM && !LV_LINUX_DRM_USE_EGL
+ 
++#include <stdlib.h>
++#include <stdio.h>
++
+ #include <errno.h>
+ #include <fcntl.h>
+ #include <poll.h>
+@@ -608,7 +611,22 @@
+     drm_dev->mmWidth = conn->mmWidth;
+     drm_dev->mmHeight = conn->mmHeight;
+ 
+-    lv_memcpy(&drm_dev->mode, &conn->modes[0], sizeof(drmModeModeInfo));
++    /* mementum: pick a mode by size when LV_DRM_MODE=WxH is set, else modes[0] */
++    int mode_index = 0;
++    const char *wanted = getenv("LV_DRM_MODE");
++    if(wanted != NULL) {
++        int want_w = 0, want_h = 0;
++        if(sscanf(wanted, "%dx%d", &want_w, &want_h) == 2) {
++            for(int m = 0; m < conn->count_modes; m++) {
++                if(conn->modes[m].hdisplay == want_w && conn->modes[m].vdisplay == want_h) {
++                    mode_index = m;
++                    break;
++                }
++            }
++        }
++    }
++
++    lv_memcpy(&drm_dev->mode, &conn->modes[mode_index], sizeof(drmModeModeInfo));
+ 
+     if(drmModeCreatePropertyBlob(drm_dev->fd, &drm_dev->mode, sizeof(drm_dev->mode),
+                                  &drm_dev->blob_id)) {
+@@ -616,8 +634,8 @@
+         goto free_res;
+     }
+ 
+-    drm_dev->width = conn->modes[0].hdisplay;
+-    drm_dev->height = conn->modes[0].vdisplay;
++    drm_dev->width = conn->modes[mode_index].hdisplay;
++    drm_dev->height = conn->modes[mode_index].vdisplay;
+ 
+     for(i = 0 ; i < res->count_encoders; i++) {
+         enc = drmModeGetEncoder(drm_dev->fd, res->encoders[i]);

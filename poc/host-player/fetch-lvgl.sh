@@ -19,3 +19,20 @@ fi
 git -C "$DEST" fetch --depth 1 --tags origin "$LVGL_VERSION" >/dev/null 2>&1 || true
 git -C "$DEST" checkout -q "$LVGL_VERSION"
 echo "lvgl: at $(git -C "$DEST" describe --tags)"
+
+# Local patches. third_party/ is not tracked here, so a change made to the
+# vendored tree is lost on the next fetch unless it lives in patches/ -- which
+# also keeps "what did we change about LVGL?" answerable from the repository.
+PATCHES="$(dirname "$0")/patches"
+for patch in "$PATCHES"/*.patch; do
+    [ -e "$patch" ] || continue
+    name="$(basename "$patch")"
+    if patch -p1 -d "$DEST" --dry-run --silent -R < "$patch" >/dev/null 2>&1; then
+        echo "lvgl: $name already applied"
+    elif patch -p1 -d "$DEST" --silent < "$patch"; then
+        echo "lvgl: applied $name"
+    else
+        echo "lvgl: FAILED to apply $name -- check it against $LVGL_VERSION" >&2
+        exit 1
+    fi
+done
