@@ -1,0 +1,15 @@
+<!-- The wall as sixteen units rather than one picture.
+
+     A cue reaches everybody at once unless it says otherwise; `spread` is how
+     it says otherwise, and the three ways it can are the three things a wall
+     can do that a single screen cannot. -->
+<guide name="spread">
+  <cue at="00:00:00" play="animation" scene="poc/scenes/three-strokes.json"
+       stagger="1s" label="one unit a second" />
+  <cue at="00:00:22" play="text" spread="deal" label="a sentence across the wall">du kannst werden was du willst</cue>
+  <cue at="00:00:38" play="effect" unit="unit-00" amplitude="16" label="a hand at the corner" />
+  <!-- `tile`: one panel width of travel per unit, so what leaves one enters
+       the next and the wall becomes a single long marquee. -->
+  <cue at="00:00:46" play="text" stagger="tile" duration="4s" label="a word walking the wall">mementum</cue>
+  <cue at="00:01:04" play="animation" scene="poc/scenes/du-kannst.json" label="back to one picture" />
+</guide>

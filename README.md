@@ -41,36 +41,9 @@ docs/phase0-host-protocol.md  that experiment, and what follows from it
 docs/phase0-c-player-protocol.md  the C player, and the mixed swarm
 docs/playbooks/linewave.md    the next test: one line, coming in and waving out
 docs/decisions/0011-one-stack-two-devices.md  how this repo sits in drm_stack
+poc/shows/                 cue sheets — the running order, with timecodes
+docs/decisions/0012-the-guide.md  the show controller, and why it has no cursor
 ```
-
-**The screen is the stack's.** `drm_screen` owns the layer model, the command
-records and the service; `drm_screen_lvgl` is the LVGL renderer plugin, binding
-the C in `poc/player/`; `drm_composer` compiles screen-HTML, and a layer of
-`<path>` elements compiles to a *scene document* rather than a bitmap. That
-document is `drm_scene_ir` — the same bytes the ESP32 player loads — so the
-composer targets a panel without running on one: compile on a host, ship a
-couple of kilobytes, and the C draws it. See
-[decision 0011](docs/decisions/0011-one-stack-two-devices.md).
-
-```bash
-pip install -e ~/code/drm_screen_lvgl        # or: pip install -r requirements-dev.txt
-make -C poc/host-player -j4 lib              # builds libdrm_screen_lvgl.so too
-python poc/screen_demo.py poc/scenes/du-kannst.json 10 drm
-```
-
-The rule the simulator obeys, and the reason it is worth anything: **a
-simulated node runs the real participant core; only the clock, the transport
-and the sink are substituted.** `tests/test_layering.py` fails the build if
-logic drifts into `sim/`.
-
-**Phase 0, host side** (plan §0.3 steps 1–3, §3.7). LVGL v9.5.0 with ThorVG
-builds headless on Linux and answers risk R1: a runtime stroke reveal works, so
-`progress` stays a runtime property in the IR. The device player's C sources —
-scene model, JSON loader, easing, evaluator, LVGL renderer — compile for the
-host as a shared library, and a simulated node can run **that** instead of the
-Python reference. A swarm can mix the two. Phase 0b is not started and no board
-exists yet. A number measured in simulation or on a desktop is a design
-property; a hardware gate needs a hardware number.
 
 ## Running it
 

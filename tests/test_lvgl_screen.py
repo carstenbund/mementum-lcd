@@ -197,3 +197,26 @@ def test_the_upstream_service_is_used_when_it_is_installed(service):
         assert type(service).__module__.startswith("drm_screen")
     else:  # pragma: no cover - hosts without drm_screen
         assert isinstance(service, SimpleScreenService)
+
+
+def test_a_layer_can_hold_a_different_moment_of_the_same_scene(payload):
+    """A wall is rendered once, but the units standing on it need not be at the
+    same point of the scene: a staggered start, a sentence dealt across the
+    wall, a word running through it. The offset is the layer's own clock."""
+    screen = Screen(400, 200, "memory")
+    try:
+        for index, name in enumerate(("early", "late")):
+            screen.create_layer(name, 200, 200, x=index * 200, y=0)
+            screen.set_scene(name, payload)
+        screen.set_scene_offset("late", 2000.0)
+        screen.render(2000.0)
+        frame = screen.frame()
+
+        def ink(x0):
+            return sum(1 for y in range(0, 200, 2) for x in range(x0, x0 + 200, 2)
+                       if max(frame.get(x, y)[:3]) > 60)
+
+        assert ink(0) > 0, "the early unit is two seconds into the scene"
+        assert ink(200) == 0, "the late one has not started yet"
+    finally:
+        screen.close()

@@ -123,8 +123,16 @@ def build_scene(
     stroke: str = "#e8e8f0",
     stroke_width: float = 2.5,
     margin: float = 0.10,
+    travel: bool = False,
 ) -> dict:
-    """A scene that writes ``text`` out, then holds it."""
+    """A scene that writes ``text`` out, then holds it.
+
+    With ``travel``, it does not write itself at all: it arrives already
+    written from beyond the right edge, crosses, and leaves past the left one.
+    That is what a word running through a wall needs -- each unit plays the
+    same scene, started later than its neighbour by the time the word takes to
+    cross one panel, and the word appears to walk from unit to unit.
+    """
     glyphs = load_font(font_path)
 
     # Lay out once at unit scale to measure, then scale to fit the canvas.
@@ -146,10 +154,25 @@ def build_scene(
     # The composer measures; the player never has to (decision 0004).
     subpaths = [polyline_length(subpath) for subpath in flatten_path(path_data)]
 
+    if travel:
+        # Already drawn, and moving: tx runs a full panel width either side, so
+        # the word is entirely off one edge at each end of the animation.
+        animations = [
+            {"target": "hand", "property": "transform.tx", "start": 0,
+             "duration": duration, "from": width, "to": -width, "easing": "linear"},
+        ]
+        progress = 1
+    else:
+        animations = [
+            {"target": "hand", "property": "progress", "start": 0,
+             "duration": int(duration * 0.78), "from": 0, "to": 1, "easing": "ease-in-out"},
+        ]
+        progress = 0
+
     return {
         "version": 1,
         "id": scene_id,
-        "name": "handwriting",
+        "name": "travelling" if travel else "handwriting",
         "width": width,
         "height": height,
         "fit": "contain",
@@ -167,10 +190,8 @@ def build_scene(
                 {"type": "path", "id": "hand", "d": path_data,
                  "length": round(sum(subpaths), 3),
                  "subpaths": [round(value, 3) for value in subpaths],
-                 "stroke": stroke, "stroke_width": stroke_width, "progress": 0}]}],
-        "animations": [
-            {"target": "hand", "property": "progress", "start": 0,
-             "duration": int(duration * 0.78), "from": 0, "to": 1, "easing": "ease-in-out"}],
+                 "stroke": stroke, "stroke_width": stroke_width, "progress": progress}]}],
+        "animations": animations,
     }
 
 
@@ -178,13 +199,17 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="write a phrase as pen strokes")
     parser.add_argument("text")
     parser.add_argument("--out", default=None)
+    parser.add_argument("--travel", action="store_true",
+                        help="arrive written and cross the panel, for a word "
+                             "running through a wall")
     parser.add_argument("--width", type=int, default=480)
     parser.add_argument("--height", type=int, default=320)
     parser.add_argument("--duration", type=int, default=5200)
     parser.add_argument("--font", default=DEFAULT_FONT)
     args = parser.parse_args(argv)
 
-    scene = build_scene(args.text, args.width, args.height, args.duration, font_path=args.font)
+    scene = build_scene(args.text, args.width, args.height, args.duration,
+                        font_path=args.font, travel=args.travel)
     payload = json.dumps(scene, indent=2) + "\n"
     if args.out:
         with open(args.out, "w", encoding="utf-8") as fh:

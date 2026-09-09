@@ -39,7 +39,8 @@ from drm_screen_lvgl import LvglError, LvglRenderer, LvglScreen, is_available  #
 
 from mementum_node.screen.commands import (  # noqa: E402,F401
     ClearLayer, CreateLayer, DeleteLayer, HideLayer, PlaceRawBuffer, PlaceScene,
-    SetInteractive, SetOpacity, SetPointer, SetPosition, SetZ, ShowLayer, StartRipple,
+    SetInteractive, SetOpacity, SetPointer, SetPosition, SetSceneOffset, SetZ,
+    ShowLayer, StartRipple,
 )
 from mementum_node.screen.service import Screen, screen_service  # noqa: E402
 

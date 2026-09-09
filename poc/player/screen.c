@@ -33,6 +33,7 @@ typedef struct {
     lv_obj_t *canvas;
     lv_draw_buf_t *buf;
     mm_scene_t *scene;                  /**< NULL for a bitmap layer */
+    double time_offset;                 /**< this layer's own clock, vs the screen's */
     mm_ripple_t ripples[MM_MAX_RIPPLES];
     int ripple_count;
 } mm_screen_layer_t;
@@ -412,6 +413,17 @@ int mm_screen_layer_scene(mm_screen_t *screen, const char *name, const char *sce
     return 0;
 }
 
+int mm_screen_layer_offset(mm_screen_t *screen, const char *name, double offset_ms)
+{
+    mm_screen_layer_t *layer = find_layer(screen, name);
+    if(layer == NULL) {
+        set_error("no layer %s", name ? name : "(null)");
+        return -1;
+    }
+    layer->time_offset = offset_ms;
+    return 0;
+}
+
 int mm_screen_layer_ripple(mm_screen_t *screen, const char *name, double origin,
                            double start_scene_time, double amplitude, double wavelength,
                            double speed, double life_ms, double width)
@@ -464,12 +476,15 @@ int mm_screen_render(mm_screen_t *screen, double scene_time_ms)
         mm_screen_layer_t *layer = &screen->layers[i];
         if(layer->scene == NULL || !layer->visible) continue;
 
-        mm_evaluate(layer->scene, (float)scene_time_ms);
+        /* Each layer keeps its own clock. With no offset -- the ordinary case
+         * -- this is the screen's time and every layer is the same picture. */
+        const float layer_time = (float)(scene_time_ms - layer->time_offset);
+        mm_evaluate(layer->scene, layer_time);
 
         mm_ripple_t live[MM_MAX_RIPPLES];
         int live_count = 0;
         for(int r = 0; r < layer->ripple_count; r++) {
-            if(mm_ripple_active(&layer->ripples[r], (float)scene_time_ms)) {
+            if(mm_ripple_active(&layer->ripples[r], layer_time)) {
                 live[live_count++] = layer->ripples[r];
             }
         }
@@ -480,7 +495,7 @@ int mm_screen_render(mm_screen_t *screen, double scene_time_ms)
         lv_layer_t draw;
         lv_canvas_init_layer(layer->canvas, &draw);
         mm_render_scene(&draw, layer->scene, layer->width, layer->height,
-                        live, live_count, (float)scene_time_ms);
+                        live, live_count, layer_time);
         lv_canvas_finish_layer(layer->canvas, &draw);
         lv_obj_invalidate(layer->canvas);
     }

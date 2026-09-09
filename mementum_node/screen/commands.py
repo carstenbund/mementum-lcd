@@ -28,7 +28,7 @@ from dataclasses import dataclass
 __all__ = [
     "CreateLayer", "DeleteLayer", "ClearLayer", "ShowLayer", "HideLayer",
     "SetPosition", "SetZ", "PlaceRawBuffer", "SetInteractive", "SetPointer",
-    "PlaceScene", "SetOpacity", "StartRipple", "HAVE_DRM_SCREEN",
+    "PlaceScene", "SetOpacity", "SetSceneOffset", "StartRipple", "HAVE_DRM_SCREEN",
 ]
 
 try:  # the real contract, when it is on the machine
@@ -120,6 +120,19 @@ if not HAVE_DRM_SCREEN:  # pragma: no cover - mirrored from drm_screen
         name: str
         scene: bytes | str
         fmt: str = "drm_scene_ir/json"
+
+
+@dataclass
+class SetSceneOffset:
+    """Shift one layer's own clock against the screen's.
+
+    A wall is rendered at one time, but the units standing on it need not be
+    holding the same moment: a staggered start, a sentence dealt across the
+    wall, a word running through it. The offset is that difference, and it is
+    the layer's, so nothing is rendered twice and nothing accumulates."""
+
+    name: str
+    offset: float
 
 
 @dataclass

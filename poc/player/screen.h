@@ -62,6 +62,12 @@ int mm_screen_layer_blit(mm_screen_t *screen, const char *name, const uint8_t *r
  *  panel's resolution, every time the screen is rendered. */
 int mm_screen_layer_scene(mm_screen_t *screen, const char *name, const char *scene_json);
 
+/** Shift a scene layer's own clock. The screen is rendered at one time; a
+ *  layer with an offset is evaluated at `scene_time - offset`, which is what
+ *  lets units on one wall start one after another, or hold different moments
+ *  of the same scene, without anyone rendering twice. */
+int mm_screen_layer_offset(mm_screen_t *screen, const char *name, double offset_ms);
+
 /** A ripple on a scene layer -- local excitement, exactly as in the player. */
 int mm_screen_layer_ripple(mm_screen_t *screen, const char *name, double origin,
                            double start_scene_time, double amplitude, double wavelength,
