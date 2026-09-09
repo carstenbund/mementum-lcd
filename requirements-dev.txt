@@ -8,3 +8,8 @@ pytest==9.1.1
 # runs mementum_node.screen.service.SimpleScreenService instead.
 drm-screen-lvgl @ git+https://github.com/carstenbund/drm_screen_lvgl
 drm-screen ; python_version >= "3.10"
+
+# The control server (mementum_node/server/): flask and requests, matching
+# mementum-led's raspberry/requirements.txt so one Pi can run both.
+flask>=3.0
+requests>=2.28

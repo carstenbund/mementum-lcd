@@ -42,7 +42,21 @@ docs/phase0-c-player-protocol.md  the C player, and the mixed swarm
 docs/playbooks/linewave.md    the next test: one line, coming in and waving out
 docs/decisions/0011-one-stack-two-devices.md  how this repo sits in drm_stack
 poc/shows/                 cue sheets — the running order, with timecodes
+mementum_node/server/      the control server — mementum-led's, ported
 docs/decisions/0012-the-guide.md  the show controller, and why it has no cursor
+docs/decisions/0013-control-server-ported.md  the routes, and mixed LED/LCD walls
+```
+
+**The control server is `mementum-led`'s, ported.** Same routes, same parameter
+names, same sentences a firmware parses — so a panel that speaks that protocol
+works here unmodified, and **one wall can hold both kinds**: an LED matrix
+scrolling the string a cue was written from while an LCD beside it draws the
+same words as pen strokes.
+
+```bash
+python -m mementum_node.server --show poc/shows/opening.json --port 8080
+curl "localhost:8080/effect?data=hallo&stagger=tile"   # one long marquee
+curl "localhost:8080/identify?seconds=10"              # read the wall
 ```
 
 ## Running it

@@ -1,0 +1,141 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>mementum control</title>
+<style>
+  :root { color-scheme: dark; --ink:#e8e8f0; --dim:#8a8a99; --bg:#0c0c11; --line:#23232e;
+          --accent:#8fe0c2; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 system-ui, sans-serif; }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; gap:16px;
+           align-items:baseline; }
+  h1 { font-size:16px; margin:0; font-weight:600; letter-spacing:.04em; }
+  main { display:grid; grid-template-columns:1fr 1fr; gap:20px; padding:20px; }
+  section { border:1px solid var(--line); border-radius:6px; padding:14px 16px; }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim);
+       margin:0 0 10px; font-weight:600; }
+  button { background:#1a1a24; color:var(--ink); border:1px solid var(--line);
+           border-radius:4px; padding:6px 12px; font:inherit; cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  input, select { background:#14141c; color:var(--ink); border:1px solid var(--line);
+                  border-radius:4px; padding:6px 8px; font:inherit; }
+  table { width:100%; border-collapse:collapse; }
+  th { text-align:left; font-weight:500; color:var(--dim); font-size:12px; }
+  td, th { padding:3px 8px 3px 0; border-bottom:1px solid var(--line); }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+  .grow { flex:1; min-width:120px; }
+  .kind { font-size:11px; padding:1px 6px; border-radius:3px; border:1px solid var(--line); }
+  .lcd { color:var(--accent); } .led { color:#e0c28f; }
+  .off { color:#6b3b3b; }
+  #log { height:340px; overflow:auto; font:12px/1.45 ui-monospace, monospace; }
+  #log div { white-space:pre-wrap; border-bottom:1px solid #16161e; padding:2px 0; }
+  .debug { color:var(--dim); } .warning { color:#e0c28f; } .error { color:#e08f8f; }
+  .now { font:12px ui-monospace, monospace; color:var(--dim); }
+</style>
+
+<header>
+  <h1>mementum control</h1>
+  <span class="now" id="state">—</span>
+</header>
+
+<main>
+  <section>
+    <h2>Show</h2>
+    <div class="row">
+      <button onclick="go('/start')">Start</button>
+      <button onclick="go('/stop')">Stop</button>
+      <input id="seek" placeholder="00:00:20" size="9">
+      <button onclick="go('/seek?at=' + encodeURIComponent(el('seek').value || '0'))">Seek</button>
+      <button onclick="go('/clear')">Clear</button>
+    </div>
+    <table id="cues"></table>
+  </section>
+
+  <section>
+    <h2>Panels</h2>
+    <div class="row">
+      <button onclick="go('/identify?seconds=10')">Identify</button>
+      <span class="now" id="count"></span>
+    </div>
+    <table id="clients"></table>
+  </section>
+
+  <section>
+    <h2>Play</h2>
+    <div class="row">
+      <input id="text" class="grow" placeholder="a line to write">
+      <button onclick="go('/text?data=' + encodeURIComponent(el('text').value))">Write</button>
+    </div>
+    <div class="row">
+      <select id="stagger">
+        <option value="">all at once</option>
+        <option value="auto">auto — a full go per panel</option>
+        <option value="tile">tile — one long marquee</option>
+        <option value="1s">1s</option>
+      </select>
+      <input id="factor" size="3" value="1.0" title="factor">
+      <label><input type="checkbox" id="reverse"> reverse</label>
+      <input id="order" size="8" placeholder="order 3,1,2">
+      <button onclick="sweep()">Effect</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Log</h2>
+    <div id="log"></div>
+  </section>
+</main>
+
+<script>
+  const el = id => document.getElementById(id);
+  const go = url => fetch(url).then(r => r.json()).then(refresh).catch(() => {});
+
+  function sweep() {
+    const p = new URLSearchParams();
+    const words = el('text').value.trim();
+    if (words) p.set('data', words);
+    p.set('stagger', el('stagger').value || 'auto');
+    p.set('factor', el('factor').value || '1');
+    if (el('reverse').checked) p.set('reverse', '1');
+    if (el('order').value.trim()) p.set('order', el('order').value.trim());
+    go('/effect?' + p.toString());
+  }
+
+  function refresh(status) {
+    if (!status || !status.guide === undefined) return;
+    el('state').textContent =
+      `${status.running ? '▶' : '■'} ${status.guide || 'no guide'} · ${status.show_time || '—'}` +
+      ` · ${status.cues} cues · ${status.units} panels` +
+      (status.effect_for ? ` · effect ${status.effect_for}s` : '');
+    el('cues').innerHTML =
+      `<tr><th>now</th><td>${status.current || '—'}</td></tr>` +
+      `<tr><th>next</th><td>${status.next || '—'}</td></tr>` +
+      `<tr><th>scene</th><td>${status.scene_id || '—'}</td></tr>` +
+      `<tr><th>lead</th><td>${Math.round(status.lead_ms)} ms</td></tr>`;
+  }
+
+  function clients() {
+    fetch('/clients').then(r => r.json()).then(data => {
+      el('count').textContent = `${data.clients.filter(c => c.active).length} active`;
+      el('clients').innerHTML =
+        '<tr><th>id</th><th>kind</th><th>address</th><th>seen</th></tr>' +
+        data.clients.map(c =>
+          `<tr class="${c.active ? '' : 'off'}"><td>${c.id}</td>` +
+          `<td><span class="kind ${c.kind}">${c.kind}</span></td>` +
+          `<td>${c.ip}</td><td>${c.age}s</td></tr>`).join('');
+    }).catch(() => {});
+  }
+
+  const stream = new EventSource('/logstream');
+  stream.onmessage = event => {
+    const entry = JSON.parse(event.data);
+    const line = document.createElement('div');
+    line.className = entry.level;
+    line.textContent = new Date(entry.t * 1000).toLocaleTimeString() + '  ' + entry.message;
+    el('log').appendChild(line);
+    while (el('log').childElementCount > 400) el('log').firstChild.remove();
+    el('log').scrollTop = el('log').scrollHeight;
+  };
+
+  setInterval(() => fetch('/show').then(r => r.json()).then(refresh).catch(() => {}), 500);
+  setInterval(clients, 2000);
+  clients();
+</script>
