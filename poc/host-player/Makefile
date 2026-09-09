@@ -26,7 +26,7 @@ SUBPATH_SRCS := probe_subpath.c
 # The player itself: portable C, shared verbatim with the future ESP-IDF build.
 PLAYER_SRCS := $(PLAYER_DIR)/easing.c $(PLAYER_DIR)/geometry.c $(PLAYER_DIR)/evaluator.c \
                $(PLAYER_DIR)/scene_json.c $(PLAYER_DIR)/render_lvgl.c $(PLAYER_DIR)/ripple.c \
-               $(PLAYER_DIR)/player.c $(PLAYER_DIR)/screen.c
+               $(PLAYER_DIR)/player.c $(PLAYER_DIR)/screen.c $(PLAYER_DIR)/schedule.c
 CJSON_SRCS := $(CJSON_DIR)/cJSON.c
 PLAYER_OBJS := $(patsubst $(PLAYER_DIR)/%,$(BUILD_DIR)/player/%.o,$(PLAYER_SRCS)) \
                $(patsubst $(CJSON_DIR)/%,$(BUILD_DIR)/cjson/%.o,$(CJSON_SRCS))

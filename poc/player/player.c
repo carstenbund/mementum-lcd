@@ -6,6 +6,7 @@
 #include "render_lvgl.h"
 #include "ripple.h"
 #include "scene_json.h"
+#include "schedule.h"
 
 #include "lvgl.h"
 
@@ -249,4 +250,39 @@ double mm_player_property_at(const mm_player_t *player, const char *object_id,
 double mm_player_ease(const char *easing, double p)
 {
     return mm_ease(mm_easing_from_name(easing), (float)p);
+}
+
+
+/* -- the schedule, as the firmware holds it -------------------------------- */
+
+int mm_schedule_size(void)
+{
+    return (int)sizeof(mm_schedule_t);
+}
+
+void mm_schedule_reset(void *schedule)
+{
+    mm_schedule_clear((mm_schedule_t *)schedule);
+}
+
+int mm_schedule_take(void *schedule, unsigned int seq, double display_at,
+                     int scene_id, const char *scene_hash, int duration_ms)
+{
+    return mm_schedule_adopt((mm_schedule_t *)schedule, (uint32_t)seq, display_at,
+                             scene_id, scene_hash, duration_ms) ? 1 : 0;
+}
+
+double mm_schedule_at(const void *schedule, double now)
+{
+    return mm_schedule_time((const mm_schedule_t *)schedule, now);
+}
+
+int mm_schedule_visible(const void *schedule, double now)
+{
+    return mm_schedule_showing((const mm_schedule_t *)schedule, now) ? 1 : 0;
+}
+
+int mm_schedule_over(const void *schedule, double now)
+{
+    return mm_schedule_finished((const mm_schedule_t *)schedule, now) ? 1 : 0;
 }

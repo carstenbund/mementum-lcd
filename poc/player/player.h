@@ -46,6 +46,18 @@ int mm_player_ripple_count(const mm_player_t *player);
 /** Discard them all. */
 void mm_player_clear_ripples(mm_player_t *player);
 
+/* -- the schedule a device holds (schedule.h) ------------------------------ */
+
+/** The firmware's schedule logic, reachable from the host so the lines the
+ *  ESP32 runs are the lines the tests run. Opaque here; see schedule.h. */
+int    mm_schedule_size(void);
+void   mm_schedule_reset(void *schedule);
+int    mm_schedule_take(void *schedule, unsigned int seq, double display_at,
+                        int scene_id, const char *scene_hash, int duration_ms);
+double mm_schedule_at(const void *schedule, double now);
+int    mm_schedule_visible(const void *schedule, double now);
+int    mm_schedule_over(const void *schedule, double now);
+
 /** Why the last call failed. Never NULL. */
 const char *mm_player_error(void);
 
