@@ -14,10 +14,9 @@ checkable by eye across a heterogeneous set.
 
 from __future__ import annotations
 
-from .font5x7 import ADVANCE, CELL_H, CELL_W, resolve_font
+from .font5x7 import ADVANCE, resolve_font
 from .framebuffer import Frame
 from .geometry import (
-    HELIX_BANDS,
     HELIX_SHADE_FAR,
     normal_offsets,
     ripple_offsets,

@@ -11,8 +11,6 @@ No network: the fan-out's session is a stub that records what each panel was
 told, which is the interesting part anyway.
 """
 
-import json
-
 import pytest
 
 flask = pytest.importorskip("flask", reason="flask not installed")

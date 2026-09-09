@@ -103,11 +103,6 @@ except ImportError:  # pragma: no cover - exercised on hosts without drm_screen
         y: int
         visible: bool = True
 
-
-# -- additions ----------------------------------------------------------------
-
-if not HAVE_DRM_SCREEN:  # pragma: no cover - mirrored from drm_screen
-
     @dataclass
     class SetOpacity:
         name: str
@@ -121,6 +116,8 @@ if not HAVE_DRM_SCREEN:  # pragma: no cover - mirrored from drm_screen
         scene: bytes | str
         fmt: str = "drm_scene_ir/json"
 
+
+# -- additions ----------------------------------------------------------------
 
 @dataclass
 class SetSceneOffset:

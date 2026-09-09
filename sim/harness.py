@@ -19,8 +19,6 @@ from mementum_node.core.library import SceneLibrary
 from mementum_node.core.protocol import (
     DISPLAY_LEAD_MS,
     HEARTBEAT_INTERVAL_MS,
-    Capabilities,
-    Display,
 )
 from mementum_node.core.sequencer import PlayResult, Sequencer
 

@@ -92,7 +92,7 @@ for all three seams on unrelated grounds:
 | Swap | Real | Simulated | Seam from |
 |---|---|---|---|
 | sink | `drm_screen` → DRM/KMS | headless RGBA buffer | §14 — a sink is a sibling backend |
-| transport | unicast HTTP | in-process queue | §20 — the control plane is semantics, the binding is replaceable |
+| transport | unicast HTTP | in-process queue | §20 — the control plane is semantics, the binding is replaceable. **Both exist now**: `mementum_node/server/` and `mementum_node/client/` are the HTTP binding, ported from `mementum-led`'s; `sim/transport.py` is the queue. Phase 5b (multicast) is still deferred |
 | clock | Cristian over HTTP | virtual clock, per-node offset | §20 — `sharedNow()` is the only thing playback depends on |
 
 `drm_display` already ships headless backends and `drm_stack`'s integration tests

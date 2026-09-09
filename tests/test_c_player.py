@@ -253,7 +253,6 @@ def test_both_players_ripple_alike():
     second layer needs before it can be called real."""
     from mementum_node.core.render_backend import ReferenceRenderer
     from mementum_node.core.ripple import Ripple
-    from sim.assert_sync import looks_the_same
 
     scene_path = os.path.join(os.path.dirname(SCENE_PATH), "loop-helix.json")
     with open(scene_path, "rb") as fh:
@@ -296,7 +295,6 @@ def test_both_players_write_by_letter(payload):
     sequenced them, because the multi-stroke fixture had only ever been run
     through the C player — so this asserts both."""
     from mementum_node.core.render_backend import ReferenceRenderer
-    from sim.assert_sync import ink, looks_the_same
 
     scene_path = os.path.join(os.path.dirname(SCENE_PATH), "handwriting.json")
     with open(scene_path, "rb") as fh:

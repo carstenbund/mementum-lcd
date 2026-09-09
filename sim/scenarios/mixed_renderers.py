@@ -54,7 +54,7 @@ def run() -> ScenarioResult:
     ]
     everyone = python_nodes + c_nodes
 
-    play = harness.play(42)
+    harness.play(42)
     harness.advance(harness.sequencer.lead_ms + 2400)
 
     result.check("both renderer families are playing",

@@ -18,7 +18,7 @@ from mementum_node.core.clock import FixedClock
 from mementum_node.core.guide import Cue, Guide, format_timecode, parse_timecode
 from mementum_node.core.library import SceneLibrary
 from mementum_node.core.protocol import (
-    Capabilities, Display, NodeDescriptor, Position, Register, RippleCommand,
+    Capabilities, Display, NodeDescriptor, Position, Register,
 )
 from mementum_node.core.sequencer import Sequencer
 from mementum_node.core.transport import PushResult

@@ -1,9 +1,10 @@
 # Step report — where the project stands
 
-* Date: 2026-09-07
-* Revision: `ad3222e` plus the working tree
-* Covers: everything built so far — Phase 0c, the Phase 0 host track, and the
-  exploratory work that followed.
+* Date: 2026-09-09
+* Revision: `4657939`
+* Covers: everything built so far — Phase 0c, the Phase 0 host track, the
+  exploratory work that followed, and the three things that came out of it:
+  the screen, the show, and the wire.
 
 **On the standard applied throughout.** Numbers are here because measuring is
 cheap and repeatable, not because this is instrumentation. What is being built
@@ -17,18 +18,26 @@ anything about frame rate, memory or real network timing on a device.
 ## 1. What exists
 
 ```text
-mementum_node/     3932 lines   the real participant core, and the C binding
-sim/               2470 lines   the three substitutions, harness, scenarios, tools
-poc/player/        2004 lines   the device's player, portable C
-tools/                          the handwriting converter
-poc/scenes/           7 scenes  signature, three-strokes, linewave, waves, handwriting
-tests/              180 tests   ~29 s, no hardware
-docs/                 5 reports, 6 decisions, 1 playbook
+mementum_node/core     4311 lines  the participant core: model, evaluator,
+                                   renderer, protocol, guide, sequencer, clock
+mementum_node/screen    340 lines  the screen, adapted from drm_screen + the plugin
+mementum_node/server    989 lines  the control server — mementum-led's, ported
+mementum_node/client    591 lines  a panel on the network
+mementum_node/players   222 lines  the C player, bound with ctypes
+sim/                   2469 lines  the three substitutions, harness, scenarios
+tools/                 1367 lines  handwriting, symbols, the composer, the guide
+poc/player/            2821 lines  the device's player and its schedule, portable C
+poc/firmware/           478 lines  the ESP32-S3 sketch (never compiled — no board)
+tests/                 3205 lines  309 tests, ~31 s, no hardware
+docs/                  5 reports, 14 decisions, 1 playbook
 ```
 
 Pinned dependencies, all vendored and fetched by script: **LVGL v9.5.0** (with
 ThorVG inside it), **cJSON v1.7.18**, **Hershey stroke fonts**. The core and the
-simulator are stdlib-only; the C player needs nothing but gcc.
+simulator are stdlib-only; the C player needs nothing but gcc. The screen comes
+from `drm_screen` + `drm-screen-lvgl` and the control server from flask +
+requests — all of which are *this project consuming the stack it belongs to*
+rather than dependencies it went looking for.
 
 ## 2. What has been proven
 
@@ -93,6 +102,12 @@ schedule they are deliberately fire-and-forget.
 | [0006](decisions/0006-animation-phases.md) | the governing animation is the last one to have started |
 | [0007](decisions/0007-helix-deformation.md) | depth without a 3D pipeline; sway and depth are separate numbers |
 | [0008](decisions/0008-two-layers.md) | the animation is the work; interaction is a discovered second layer |
+| [0009](decisions/0009-vector-painter-ports-back.md) | the vector renderer extends `drm_stack`, it does not depart from it |
+| [0010](decisions/0010-drm-screen-on-lvgl.md) | `drm_screen`'s vocabulary, LVGL's compositor, and scenes on layers |
+| [0011](decisions/0011-one-stack-two-devices.md) | this repository consumes the stack rather than shadowing it |
+| [0012](decisions/0012-the-guide.md) | a show is a document evaluated against a clock, not a cursor |
+| [0013](decisions/0013-control-server-ported.md) | the control server is `mementum-led`'s, ported; one wall, two kinds of panel |
+| [0014](decisions/0014-panels-are-clients.md) | a panel is a client, because the server hands out scenes |
 
 ## 4. What the experiments found
 
@@ -144,19 +159,62 @@ content meets the real code path.
   rather than "essential", since text is a supporting content type.
 * **What is displayed between scenes** (open question 5). Still undefined, and
   it broke a render for real when a scene ended underneath it.
+* **The firmware.** `poc/firmware/mementum_lcd/` has never been compiled or
+  flashed — there is no board here and no toolchain. Everything it draws with
+  is shared C the host suite exercises, and the protocol it speaks is exercised
+  end to end over real sockets by the Python client, but neither of those is
+  the same as working.
 
-## 6. Where the critical path goes
+## 6. The screen, the show, and the wire
+
+Three things were built after the exploratory work, each because the previous
+one made the gap obvious.
+
+**The screen is the stack's.** `drm_screen`'s API was implemented on LVGL here
+to find out whether it worked, then moved upstream where it belongs: the
+renderer seam and `PlaceScene` into `drm_screen`, the binding into
+`drm-screen-lvgl`, `<path>`/`<animate>` into `drm_composer`, Stage 4b into the
+`drm_stack` roadmap. What is left here is an adapter, and ~500 lines left with
+it. The same batch of commands gives a byte-identical frame from the numpy
+compositor and from LVGL; a scene on a layer draws what the device player
+draws, byte for byte. Measured: 1.5 ms per frame at 1920×1080 for a full-screen
+animated scene from a 1.4 KB document, and 2.8 ms for a sixteen-panel wall with
+sixteen clocks (decisions 0009–0011, 0013).
+
+**The show is a document.** A guide is a running order with timecodes —
+`play text`, `play animation`, `play effect` — and the server plays it by
+evaluating rather than by advancing a cursor: what is on the wall is the last
+scene cue whose moment has passed. Late join is the ordinary registration
+reply, a seek is the epoch moving, a tick that arrives late fires what it
+missed. A schedule belongs to a *unit*, so a wall can also be sixteen units
+standing together: `spread` (what each shows) and `stagger` (when it starts,
+`auto` / `tile` / a time, with `factor`, `reverse` and an explicit order) —
+`mementum-led`'s vocabulary, adopted rather than reinvented (decision 0012).
+
+**The wire is `mementum-led`'s.** Its Pi server is a faithful port of the
+ESP32's own; this one is a port of that, with the same routes, the same
+parameter names and the same sentences a firmware parses. So an LED matrix and
+an LCD panel can stand on one wall and take the same cue — the matrix gets the
+string, the panel gets the scene compiled from the same words, and a scene that
+was never words is refused out loud. `ParticipantCore` needed nothing added to
+live on a network: the client is the three substitutions, plus a listener,
+because being pushed to is a property of the binding (decisions 0013, 0014).
+
+## 7. Where the critical path goes
 
 ```text
-now      right-size the parsed geometry; the symbol model with named parts;
-         transform.rotate
-then     a filesystem-backed content-hash cache, so host and device share one
-         cache and an SD card is just a directory
+now      the ESP32 sketch has never been compiled: the display driver, PSRAM,
+         lv_conf.h — everything above them is already tested on the host
+then     per-layer timing in markup (the renderer takes an offset per layer and
+         drm_composer cannot say one); a filesystem-backed content-hash cache,
+         so host and device share one cache and an SD card is just a directory
 gate     hardware: the ESP-IDF build, frame rate, memory, two-unit skew
-later    fonts on the asset plane; the interactive layer's own character;
-         coupled modes across units
+later    <symbol src> and an SVG converter; fonts on the asset plane; the
+         interactive layer's own character; coupled modes across units;
+         drm_scene_ir as its own versioned repo with a conformance suite
 ```
 
-The simulator and the C player together mean each of those arrives as a
-measurement rather than an argument. What they cannot do is answer for the
-board, and every remaining question of consequence is now a board question.
+The simulator, the C player and now a real socket between the two halves mean
+each of those arrives as a measurement rather than an argument. What they
+cannot do is answer for the board, and every remaining question of consequence
+is now a board question.

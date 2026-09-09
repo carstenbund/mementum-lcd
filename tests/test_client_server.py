@@ -12,7 +12,6 @@ is the first thing here that would keep working if the two halves were on
 different machines.
 """
 
-import json
 import threading
 import time
 from wsgiref.simple_server import WSGIRequestHandler, make_server

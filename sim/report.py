@@ -19,12 +19,10 @@ import argparse
 import json
 import os
 import platform
-import sys
 from datetime import datetime, timezone
 
 from mementum_node.core.framebuffer import Frame
 from mementum_node.core.png import write_png
-from mementum_node.core.renderer import draw_text
 
 from .assert_sync import diff_frames, diff_image, ink, looks_the_same, skew_report
 from .wall import mosaic
@@ -199,7 +197,7 @@ def _write_summary(path: str, result, manifest: dict, metrics: list[dict]) -> No
         f"* written: {manifest['written_at']}",
         f"* scene: {manifest['scene']['path']} "
         f"(id {manifest['scene']['id']}, {manifest['scene']['duration_ms']:.0f} ms)",
-        f"* clients: " + ", ".join(
+        "* clients: " + ", ".join(
             f"{c['node_id']} ({c['renderer']}, {c['display']})" for c in manifest["clients"]
         ),
         f"* checks: {passed}/{len(manifest['checks'])} passed",

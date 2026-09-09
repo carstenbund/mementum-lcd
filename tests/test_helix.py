@@ -29,7 +29,7 @@ from mementum_node.core.geometry import (
 from mementum_node.core.render_backend import ReferenceRenderer
 from mementum_node.core.scene import load_scene, parse_scene
 from mementum_node.players.lvgl import LvglPlayer, LvglPlayerError, is_available
-from sim.assert_sync import ink, looks_the_same
+from sim.assert_sync import looks_the_same
 
 from .conftest_helpers import SCENE_PATH, objects_of
 
