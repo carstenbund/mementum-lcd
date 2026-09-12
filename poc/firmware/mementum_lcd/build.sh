@@ -26,8 +26,14 @@ command -v arduino-cli >/dev/null || {
 sh "$here/link.sh"
 
 echo "== libraries =="
-arduino-cli lib install "lvgl@9.5.0" 2>/dev/null || \
-    echo "  install LVGL 9.5.0 by hand, or point libraries.txt at the vendored checkout"
+# The vendored checkout rather than the registry's copy, so the panel compiles
+# the LVGL the host suite was measured against -- patches included. lv_conf.h
+# sits beside the library folder, which is where LVGL looks for it, and is the
+# same file the IDF build uses.
+libraries="${ARDUINO_LIBRARIES:-$HOME/Arduino/libraries}"
+mkdir -p "$libraries"
+ln -sfn "$here/../../../third_party/lvgl" "$libraries/lvgl"
+ln -sfn "$here/lv_conf.h" "$libraries/lv_conf.h"
 
 echo "== compile =="
 arduino-cli compile --fqbn "$FQBN:$OPTS" --warnings default "$here"

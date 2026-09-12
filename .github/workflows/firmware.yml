@@ -67,3 +67,57 @@ jobs:
             poc/firmware/idf/build/*.map
             poc/firmware/idf/build/*.elf
           if-no-files-found: error
+
+  arduino:
+    # Path A of the bring-up plan: the sketch, which has never been compiled.
+    # What it adds over the IDF job is net.cpp -- registration, the Cristian
+    # sync, the heartbeat and the four push routes, none of which the IDF main
+    # touches yet -- and the Arduino core's own view of PSRAM and partitions.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch the pinned LVGL and cJSON
+        run: |
+          poc/host-player/fetch-lvgl.sh
+          poc/host-player/fetch-cjson.sh
+
+      - name: Link the shared C into the sketch
+        run: sh poc/firmware/mementum_lcd/link.sh
+
+      - uses: arduino/setup-arduino-cli@v2
+
+      - name: Install the ESP32 core
+        run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls \
+            https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32
+
+      - name: Offer LVGL as a library — the vendored one, not the registry's
+        # Same rule as the IDF job: the device compiles the checkout the host
+        # suite was measured against, patches included. lv_conf.h goes beside
+        # the library folder, which is where LVGL looks for it, and is the same
+        # file the sketch and the IDF build use.
+        run: |
+          libraries="$HOME/Arduino/libraries"
+          mkdir -p "$libraries"
+          ln -sfn "$PWD/third_party/lvgl" "$libraries/lvgl"
+          ln -sfn "$PWD/poc/firmware/mementum_lcd/lv_conf.h" "$libraries/lv_conf.h"
+          arduino-cli lib list
+
+      - name: Compile the sketch for esp32s3
+        run: |
+          arduino-cli compile \
+            --fqbn "esp32:esp32:esp32s3:PSRAM=opi,PartitionScheme=huge_app,FlashSize=8M,CPUFreq=240" \
+            --warnings default \
+            --output-dir build-arduino \
+            poc/firmware/mementum_lcd
+
+      - name: Keep the binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: mementum-panel-arduino
+          path: build-arduino/*.bin
+          if-no-files-found: error
