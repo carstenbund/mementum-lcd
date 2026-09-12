@@ -119,6 +119,29 @@ B5 is a rewrite of `net.cpp` against IDF APIs rather than Arduino ones — about
 300 lines, and the only firmware code that is not shared. Everything it drives
 (`mm_schedule_*`) is already tested on the host.
 
+## What the first builds answered
+
+`.github/workflows/firmware.yml` built the IDF project on 2026-09-12, and two
+things that were unknowns in this plan when it was written are now facts:
+
+| | |
+|---|---|
+| **ThorVG compiles for Xtensa** | 2.3 MB of float-heavy C++ through `xtensa-esp32s3-elf-gcc 14.2`; `liblvgl.a` links |
+| binary | **565 KB** (`.text` 428 KB, `.rodata` 82 KB) — **82% of the 3 MB partition free** |
+| static RAM | `.bss` **104 KB** of 342 KB DIRAM, leaving ~180 KB before anything is allocated |
+| IRAM | 16 KB, full — it links, so it fits, but there is no headroom there |
+
+Two corrections to what this document assumed:
+
+* **"ThorVG will not fit in the default 1.2 MB partition" was wrong.** It fits
+  in 565 KB. The 3 MB partition stays for OTA headroom, not necessity.
+* **The PSRAM case is stronger, not weaker.** 104 KB of `.bss` before a scene
+  exists leaves ~180 KB of internal RAM, and a single path object is 75 KB.
+  Nothing about the scene or the canvas can come from there.
+
+Still unanswered by a compiler, and still needing a board: frame time, PSRAM
+bandwidth, whether the display flush keeps up, and skew between two units.
+
 ## What CI can answer without a board
 
 `.github/workflows/firmware.yml` builds the IDF project in Espressif's own
@@ -147,8 +170,8 @@ the only one that cannot be faked.
 
 ## Risks, in the order they are likely to bite
 
-1. **ThorVG on Xtensa.** C++, float-heavy, 2.3 MB of source. Unknown build,
-   unknown footprint, unknown speed. Gate A4 exists to find out early.
+1. ~~**ThorVG on Xtensa.**~~ **Answered: it builds, and costs 565 KB.** Speed
+   remains unknown, and speed was always the half a compiler cannot settle.
 2. **PSRAM bandwidth.** The canvas and the parsed geometry both live there; an
    ARGB8888 450×250 canvas is 450 KB touched per frame.
 3. **`mm_path_t` at 75 KB an object.** Right-size before believing any memory

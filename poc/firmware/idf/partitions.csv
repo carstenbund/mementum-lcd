@@ -1,5 +1,6 @@
-# app big enough for ThorVG. The default single-factory layout gives 1.2 MB;
-# LVGL with vector graphics does not fit in it.
+# 3 MB for the app. Measured, not assumed: LVGL with ThorVG and the player is
+# 565 KB, so the default 1.2 MB layout would in fact hold it -- this is headroom
+# for OTA and for scenes that grow, not necessity.
 # Name,   Type, SubType, Offset,  Size,   Flags
 nvs,      data, nvs,     0x9000,  0x6000,
 phy_init, data, phy,     0xf000,  0x1000,
