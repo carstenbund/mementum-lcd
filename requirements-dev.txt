@@ -6,8 +6,15 @@ pytest==9.1.1
 # poc/player/, so this repository is where its library is built. `drm_screen`
 # brings the service and the numpy compositor and is optional: a node without it
 # runs mementum_node.screen.service.SimpleScreenService instead.
-drm-screen-lvgl @ git+https://github.com/carstenbund/drm_screen_lvgl
+drm-screen-lvgl>=0.1.1
 drm-screen ; python_version >= "3.10"
+
+# `drm_composer` compiles screen-HTML to a command batch, and for a layer of
+# <path> elements that batch is a drm_scene_ir document -- which is what the C
+# player loads.  tests/test_composer_to_device.py checks exactly that, and
+# importorskip's past it when the package is absent, so without this line the
+# suite reports a pass having never run it.  <path>/<animate> arrived in 0.2.
+drm-composer>=0.2
 
 # The control server (mementum_node/server/): flask and requests, matching
 # mementum-led's raspberry/requirements.txt so one Pi can run both.
