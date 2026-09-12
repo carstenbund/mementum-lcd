@@ -1,8 +1,22 @@
-# link.sh makes these, so git should not: two sources of truth for the same
-# files is how a stale copy of the evaluator gets compiled. The cJSON ones
-# point into third_party/, which a fresh clone does not have until
-# fetch-cjson.sh has run -- a committed symlink there would simply be broken.
-*.c
-*.h
-!net.h
+# What link.sh makes, named one by one rather than by a *.h glob -- a glob here
+# swallowed lv_conf.h once, and the device's LVGL configuration silently left
+# the repository. Two sources of truth for the player's C is how a stale
+# evaluator gets compiled; a missing config is how a build is unreproducible.
+cJSON.c
+cJSON.h
+easing.c
+easing.h
+evaluator.c
+evaluator.h
+geometry.c
+geometry.h
+render_lvgl.c
+render_lvgl.h
+ripple.c
+ripple.h
+scene_json.c
+scene_json.h
+scene_model.h
+schedule.c
+schedule.h
 build/

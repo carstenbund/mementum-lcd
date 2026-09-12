@@ -119,6 +119,14 @@ B5 is a rewrite of `net.cpp` against IDF APIs rather than Arduino ones — about
 300 lines, and the only firmware code that is not shared. Everything it drives
 (`mm_schedule_*`) is already tested on the host.
 
+## What CI can answer without a board
+
+`.github/workflows/firmware.yml` builds the IDF project in Espressif's own
+container on every push. That is not a substitute for hardware, but it settles
+the one risk that could end the vector path — **does ThorVG compile for Xtensa,
+and does the result fit in 3 MB** — and it settles it on every commit rather
+than once. Frame time, PSRAM bandwidth and skew are not in its gift.
+
 ## What to measure, once it runs
 
 The project has deferred every hardware number on purpose. These are the ones

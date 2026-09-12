@@ -3,6 +3,12 @@
 
 CONFIG_IDF_TARGET="esp32s3"
 
+# Use our lv_conf.h rather than Kconfig. LVGL's Kconfig defaults LV_CONF_SKIP to
+# y, which would quietly configure the device differently from the host -- and
+# "the two renderers draw the same picture" is a property of that file as much
+# as of the code.
+CONFIG_LV_CONF_SKIP=n
+
 # PSRAM is not optional: a six-path scene is ~450 KB of parsed geometry and a
 # 450x250 ARGB8888 canvas is another 450 KB, against 512 KB of internal SRAM.
 CONFIG_SPIRAM=y

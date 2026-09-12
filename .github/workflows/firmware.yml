@@ -1,0 +1,69 @@
+name: firmware
+
+# The one question a workstation cannot answer and a board is not needed for:
+# does this build for an ESP32-S3? Specifically, does LVGL's ThorVG -- 2.3 MB of
+# float-heavy C++ -- compile for Xtensa, and does the result fit in the 3 MB app
+# partition? That is gate A4 of docs/esp32-bring-up.md, and it is the one risk
+# that could end the vector path. Everything after it (frame time, PSRAM
+# bandwidth, two-unit skew) needs hardware and is not attempted here.
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "poc/player/**"
+      - "poc/firmware/**"
+      - "poc/host-player/fetch-*.sh"
+      - "poc/host-player/patches/**"
+      - ".github/workflows/firmware.yml"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  esp-idf:
+    runs-on: ubuntu-latest
+    container: espressif/idf:release-v5.5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch the pinned LVGL and cJSON
+        # The same checkouts the host build uses, patches included -- so the
+        # device compiles the LVGL the host suite was measured against rather
+        # than whatever the registry offers today.
+        shell: bash
+        run: |
+          git config --global --add safe.directory '*'
+          poc/host-player/fetch-lvgl.sh
+          poc/host-player/fetch-cjson.sh
+
+      - name: Link the vendored LVGL into the project
+        shell: bash
+        run: poc/firmware/idf/setup.sh
+
+      - name: Build for esp32s3
+        shell: bash
+        run: |
+          . $IDF_PATH/export.sh
+          cd poc/firmware/idf
+          idf.py set-target esp32s3
+          idf.py build
+
+      - name: Size, against the partition it has to fit
+        # `idf.py build` already fails when the application outgrows the
+        # partition; this prints where the space went, which is the number the
+        # bring-up plan wants and the thing to watch as scenes get richer.
+        shell: bash
+        run: |
+          . $IDF_PATH/export.sh
+          cd poc/firmware/idf
+          idf.py size
+          idf.py size-components | head -40
+
+      - name: Keep the binary and the map
+        uses: actions/upload-artifact@v4
+        with:
+          name: mementum-panel-esp32s3
+          path: |
+            poc/firmware/idf/build/*.bin
+            poc/firmware/idf/build/*.map
+            poc/firmware/idf/build/*.elf
+          if-no-files-found: error
