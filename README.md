@@ -45,6 +45,7 @@ poc/shows/                 cue sheets — the running order, with timecodes
 mementum_node/server/      the control server — mementum-led's, ported
 mementum_node/client/      a panel on the network: register, heartbeat, draw
 poc/firmware/mementum_lcd/ the ESP32-S3 sketch (not yet built on hardware)
+docs/esp32-bring-up.md     the plan for putting it on a board — both paths
 docs/decisions/0012-the-guide.md  the show controller, and why it has no cursor
 docs/decisions/0013-control-server-ported.md  the routes, and mixed LED/LCD walls
 ```

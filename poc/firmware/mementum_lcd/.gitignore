@@ -1,0 +1,8 @@
+# link.sh makes these, so git should not: two sources of truth for the same
+# files is how a stale copy of the evaluator gets compiled. The cJSON ones
+# point into third_party/, which a fresh clone does not have until
+# fetch-cjson.sh has run -- a committed symlink there would simply be broken.
+*.c
+*.h
+!net.h
+build/

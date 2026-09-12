@@ -1,1 +1,0 @@
-/home/carsten/code/mementum-lcd/poc/firmware/mementum_lcd/../../player/scene_json.h

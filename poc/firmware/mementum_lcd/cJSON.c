@@ -1,1 +1,0 @@
-/home/carsten/code/mementum-lcd/poc/firmware/mementum_lcd/../../../third_party/cJSON/cJSON.c
