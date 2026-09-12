@@ -9,6 +9,12 @@ CONFIG_IDF_TARGET="esp32s3"
 # as of the code.
 CONFIG_LV_CONF_SKIP=n
 
+# LVGL's examples and demos are Kconfig-gated, not lv_conf-gated: the first
+# build compiled 1878 targets, several hundred of which were widget examples
+# nothing references. Off.
+CONFIG_LV_BUILD_EXAMPLES=n
+CONFIG_LV_BUILD_DEMOS=n
+
 # PSRAM is not optional: a six-path scene is ~450 KB of parsed geometry and a
 # 450x250 ARGB8888 canvas is another 450 KB, against 512 KB of internal SRAM.
 CONFIG_SPIRAM=y

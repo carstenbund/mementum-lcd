@@ -307,10 +307,25 @@ static const lv_font_t *font_for(const char *font_id)
     const char *dash = strrchr(font_id, '-');
     const int size = dash != NULL ? atoi(dash + 1) : 0;
 
+    /* Whichever sizes this build actually has. The host enables five; a panel
+     * enables one, because flash is not free -- and asking for a font that was
+     * configured out is a link error rather than a smaller letter, which is
+     * how the first ESP32 build failed. Text is the stand-in anyway: real
+     * content arrives as strokes from the composer, and the settled answer is
+     * a preprocessed font on the asset plane (§9, §18). */
+#if LV_FONT_MONTSERRAT_28
     if(size >= 26) return &lv_font_montserrat_28;
+#endif
+#if LV_FONT_MONTSERRAT_24
     if(size >= 22) return &lv_font_montserrat_24;
+#endif
+#if LV_FONT_MONTSERRAT_20
     if(size >= 18) return &lv_font_montserrat_20;
+#endif
+#if LV_FONT_MONTSERRAT_16
     if(size >= 15) return &lv_font_montserrat_16;
+#endif
+    LV_UNUSED(size);
     return &lv_font_montserrat_14;
 }
 
