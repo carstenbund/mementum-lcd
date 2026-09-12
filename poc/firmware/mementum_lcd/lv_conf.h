@@ -21,7 +21,13 @@
 #ifndef LV_CONF_H
 #define LV_CONF_H
 
-#include <stdint.h>
+/* No <stdint.h> here, unlike the host's copy. LVGL ships an Arm assembly file
+ * (src/draw/sw/blend/helium/lv_blend_helium.S) that includes lv_conf_internal.h
+ * and therefore this file, and the Arduino builder assembles every .S in a
+ * library whatever the target is. A C header reaching the Xtensa assembler
+ * produces "unknown opcode or format name 'typedef'" a few hundred times,
+ * which is how this was found. Nothing below needs a type -- these are all
+ * macros -- so the include was only ever inherited from the host config. */
 
 #define LV_COLOR_DEPTH              32          /* see the note above */
 #define LV_USE_STDLIB_MALLOC        LV_STDLIB_CLIB
