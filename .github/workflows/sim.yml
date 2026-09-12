@@ -19,6 +19,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Install libdrm
+        # lv_conf.h enables LV_USE_LINUX_DRM, so lvgl.h pulls in the DRM
+        # driver's header and every file that includes it needs libdrm's. The
+        # workstation had it and the runner did not, which is how this workflow
+        # was red for days without anybody looking.
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libdrm-dev
+
       - name: Install test dependencies
         run: |
           python -m pip install --upgrade pip

@@ -53,3 +53,10 @@ loader, the evaluator and the renderer as C sources shared with the ESP-IDF
 build, exposed as a shared library so a simulated node can run this instead of
 the Python reference renderer — the point being that the simulator stays around
 it, unchanged.
+
+## What the host build needs
+
+gcc, and **libdrm's headers** (`libdrm-dev` on Debian and Ubuntu). `lv_conf.h`
+enables `LV_USE_LINUX_DRM`, so `lvgl.h` pulls in the DRM driver's header and
+anything that includes it needs `xf86drmMode.h` -- not only the `drm_player`
+target. cJSON and LVGL are fetched by the scripts here.
