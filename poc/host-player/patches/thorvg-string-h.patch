@@ -1,0 +1,36 @@
+From: mementum-lcd
+Subject: thorvg: include <string.h> where memcpy and memset are used
+
+tvgRender.h uses memcpy and includes no string header at all; tvgCompressor.cpp
+uses both and includes <memory.h>, which is not standard and does not reliably
+declare them. Most toolchains pull them in transitively and nobody notices --
+the ESP-IDF build of the same sources is fine. The ESP32 Arduino core's
+toolchain does not, and the build stops with:
+
+    tvgCompressor.cpp:116: error: 'memset' was not declared in this scope
+    tvgRender.h:129:       error: 'memcpy' was not declared in this scope
+
+Two includes. Worth sending upstream to ThorVG rather than carrying.
+
+Applied by fetch-lvgl.sh.
+---
+--- a/src/libs/thorvg/tvgCompressor.cpp
++++ b/src/libs/thorvg/tvgCompressor.cpp
+@@ -61,6 +61,7 @@
+ 
+ #include <string>
+ #include <memory.h>
++#include <string.h>
+ #include "tvgCompressor.h"
+ 
+ namespace tvg {
+--- a/src/libs/thorvg/tvgRender.h
++++ b/src/libs/thorvg/tvgRender.h
+@@ -27,6 +27,7 @@
+ #define _TVG_RENDER_H_
+ 
+ #include <math.h>
++#include <string.h>
+ #include <cstdarg>
+ #include "tvgCommon.h"
+ #include "tvgArray.h"
