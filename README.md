@@ -47,9 +47,20 @@ mementum_node/client/      a panel on the network: register, heartbeat, draw
 poc/firmware/mementum_lcd/ the ESP32-S3 sketch — built in CI, never run
 poc/firmware/idf/          the same firmware as an ESP-IDF project
 docs/esp32-bring-up.md     the plan for putting it on a board — both paths
+docs/pico-bring-up.md      a scripted panel: MicroPython over the same C player
 docs/decisions/0012-the-guide.md  the show controller, and why it has no cursor
 docs/decisions/0013-control-server-ported.md  the routes, and mixed LED/LCD walls
+docs/decisions/0015-scripted-microcontroller.md  why MicroPython is a binding
 ```
+
+**Three device classes, one renderer.** A Linux node runs CPython over the C
+player through ctypes; an ESP32-S3 runs that same C with no Python at all; an
+RP2350 board would run MicroPython over it as the *control* language — network,
+choreography, sensors — and never as a second renderer
+([decision 0015](docs/decisions/0015-scripted-microcontroller.md)). The scene
+document is the boundary in every case, and the parsed geometry now costs what
+its content needs (14.5 KB for the writing scene, not 450 KB), which is what
+made the smallest board worth discussing at all.
 
 **The control server is `mementum-led`'s, ported.** Same routes, same parameter
 names, same sentences a firmware parses — so a panel that speaks that protocol
