@@ -72,10 +72,13 @@ and scene time is `now - displayAt` and nothing else.
 shape as the LED one. Everything it draws with is symlinked from
 `poc/player/`; only `net.cpp` is device-only.
 
-**It has not been compiled or run on hardware** — there is no board and no
-toolchain here. What can be verified without one is: the shared C, by the host
-suite; and the protocol, end-to-end over real sockets, by the Python node in
-`tests/test_client_server.py`, which speaks exactly what the firmware speaks.
+**It compiles; it has never run.** CI builds both paths on every push — the
+ESP-IDF project at 565 KB and this sketch at 1.32 MB — so `net.cpp` is past a
+compiler and ThorVG builds for Xtensa. Nothing is known about how it behaves:
+no board, therefore no frame time, no PSRAM bandwidth, no skew. What is
+verified without one is the shared C, by the host suite, and the protocol,
+end-to-end over real sockets, by the Python node in
+`tests/test_client_server.py` — which speaks exactly what the firmware speaks.
 The first bring-up will be about the display driver, PSRAM and LVGL's config,
 not about the protocol.
 

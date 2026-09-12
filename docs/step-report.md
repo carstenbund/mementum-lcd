@@ -1,7 +1,7 @@
 # Step report — where the project stands
 
-* Date: 2026-09-09
-* Revision: `4657939`
+* Date: 2026-09-12
+* Revision: `bcfc75f`
 * Covers: everything built so far — Phase 0c, the Phase 0 host track, the
   exploratory work that followed, and the three things that came out of it:
   the screen, the show, and the wire.
@@ -27,7 +27,9 @@ mementum_node/players   222 lines  the C player, bound with ctypes
 sim/                   2469 lines  the three substitutions, harness, scenarios
 tools/                 1367 lines  handwriting, symbols, the composer, the guide
 poc/player/            2821 lines  the device's player and its schedule, portable C
-poc/firmware/           478 lines  the ESP32-S3 sketch (never compiled — no board)
+poc/firmware/          1000 lines  the ESP32-S3 firmware, both paths: an Arduino
+                                   sketch and an ESP-IDF project. Built in CI,
+                                   never run
 tests/                 3205 lines  309 tests, ~31 s, no hardware
 docs/                  5 reports, 14 decisions, 1 playbook
 ```
@@ -91,6 +93,14 @@ sequencer schedules the same ripple on every other unit at a time set by how far
 away it stands, so a gesture crosses a room of nine units in **946 ms** from a
 corner and **431 ms** from the centre. Ripples are transient, so unlike the
 schedule they are deliberately fire-and-forget.
+
+### Continuously, and not only here
+
+Both workflows are green on `main`: `simulation` runs the 309 tests, every
+scenario and the wall renders on two Python versions, and `firmware` builds the
+ESP-IDF project and the Arduino sketch for an esp32s3. A mixed swarm of Python
+and C/LVGL nodes agrees to 1.5% of ink mass and 0.05 px of centroid, with 0.00
+ms of simulated skew — checked by a machine that is not the author's.
 
 ## 3. Decisions taken
 
@@ -159,11 +169,11 @@ content meets the real code path.
   rather than "essential", since text is a supporting content type.
 * **What is displayed between scenes** (open question 5). Still undefined, and
   it broke a render for real when a scene ended underneath it.
-* **The firmware.** `poc/firmware/mementum_lcd/` has never been compiled or
-  flashed — there is no board here and no toolchain. Everything it draws with
-  is shared C the host suite exercises, and the protocol it speaks is exercised
-  end to end over real sockets by the Python client, but neither of those is
-  the same as working.
+* **How the firmware behaves.** It compiles — both paths, on every push — and
+  has never run. No board means no frame time, no PSRAM bandwidth, no idea
+  whether the display flush keeps up, and no skew between two units. Compiling
+  is not working, and the four numbers that decide whether this project holds
+  up are all on the other side of that line.
 
 ## 6. The screen, the show, and the wire
 
@@ -200,15 +210,42 @@ was never words is refused out loud. `ParticipantCore` needed nothing added to
 live on a network: the client is the three substitutions, plus a listener,
 because being pushed to is a property of the binding (decisions 0013, 0014).
 
-## 7. Where the critical path goes
+## 7. What the compilers said
+
+On 2026-09-12 the firmware was built for the first time, both ways, in CI:
+
+| | |
+|---|---|
+| ESP-IDF image | **565 KB** — `.text` 428 KB, `.rodata` 82 KB — 82% of the 3 MB partition free |
+| static RAM | `.bss` **104 KB** of 342 KB DIRAM, so ~180 KB internal remains |
+| Arduino sketch | **1.32 MB**, globals 149 KB — larger because the core brings Wi-Fi, HTTP and a web server the IDF main does not have yet |
+| ThorVG | compiles for Xtensa through both toolchains |
+
+Three claims in this repository were wrong and now say so: that ThorVG would
+not fit in a 1.2 MB partition (it fits in 565 KB); that the PSRAM case rested
+on the size of a scene (it rests on 104 KB of `.bss` leaving 180 KB, against
+75 KB for one path object); and that `poc/player/` was portable C that "the
+host suite exercises" — true, but insufficient, because each of the three
+toolchains found something the other two could not. A C header reaching the
+Xtensa assembler is invisible to a build that never assembles; a missing
+`<string.h>` in ThorVG is invisible to toolchains that include it
+transitively.
+
+The fourth correction is about this document's own habit. The simulation
+workflow had been failing on every push since the screen work landed — a
+missing `libdrm-dev` on the runner — while "309 passed" was reported from a
+workstation that had it. Both true; the pair misleading. A suite that runs only
+where it passes has stopped being evidence.
+
+## 8. Where the critical path goes
 
 ```text
-now      the ESP32 sketch has never been compiled: the display driver, PSRAM,
-         lv_conf.h — everything above them is already tested on the host
+now      a board: the display driver is the only untried piece, and the numbers
+         it produces are the ones nothing here can produce
 then     per-layer timing in markup (the renderer takes an offset per layer and
          drm_composer cannot say one); a filesystem-backed content-hash cache,
          so host and device share one cache and an SD card is just a directory
-gate     hardware: the ESP-IDF build, frame rate, memory, two-unit skew
+gate     hardware: frame rate, memory under load, two-unit skew
 later    <symbol src> and an SVG converter; fonts on the asset plane; the
          interactive layer's own character; coupled modes across units;
          drm_scene_ir as its own versioned repo with a conformance suite
