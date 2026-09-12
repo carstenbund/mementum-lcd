@@ -127,9 +127,11 @@ things that were unknowns in this plan when it was written are now facts:
 | | |
 |---|---|
 | **ThorVG compiles for Xtensa** | 2.3 MB of float-heavy C++ through `xtensa-esp32s3-elf-gcc 14.2`; `liblvgl.a` links |
+| **both paths build** | the IDF project and the Arduino sketch, `net.cpp` included — three toolchains now compile the same ThorVG, and each found something the other two could not |
 | binary | **565 KB** (`.text` 428 KB, `.rodata` 82 KB) — **82% of the 3 MB partition free** |
 | static RAM | `.bss` **104 KB** of 342 KB DIRAM, leaving ~180 KB before anything is allocated |
 | IRAM | 16 KB, full — it links, so it fits, but there is no headroom there |
+| the sketch (Path A) | **1.32 MB** of the 3 MB partition, globals 149 KB of 320 KB — bigger than the IDF image because the Arduino core brings Wi-Fi, HTTP and a web server that `main.c` does not |
 
 Two corrections to what this document assumed:
 

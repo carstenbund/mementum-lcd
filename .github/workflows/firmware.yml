@@ -56,7 +56,11 @@ jobs:
           . $IDF_PATH/export.sh
           cd poc/firmware/idf
           idf.py size
-          idf.py size-components | head -40
+          # Not piped into `head`: closing the pipe early kills the size tool
+          # with BrokenPipeError and takes the job with it, which is a poor way
+          # to fail a build that succeeded.
+          idf.py size-components > size-components.txt
+          head -40 size-components.txt
 
       - name: Keep the binary and the map
         uses: actions/upload-artifact@v4
