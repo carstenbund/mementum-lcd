@@ -18,8 +18,10 @@
 #include "scene_model.h"
 #include "ripple.h"
 
-/* Right-sized against real content: a handwritten phrase runs to 15 segments
- * in its longest stroke and the signature to 12. */
+/* Refusal limits, not allocation sizes. A path is stored at exactly the size
+ * its content needs (see `mm_path_create`); these are what the player declines
+ * to draw rather than truncate -- a handwritten phrase runs to 15 segments in
+ * its longest stroke and the signature to 12, so both are generous. */
 #define MM_MAX_SEGMENTS 48
 
 typedef struct {
@@ -32,25 +34,59 @@ typedef struct {
 
 typedef struct {
     mm_point_t start;
-    mm_segment_t segments[MM_MAX_SEGMENTS];
+    mm_segment_t *segments;     /**< into the path's own pool; never owned here */
     int segment_count;
     bool closed;
     float length;
 } mm_subpath_t;
 
+/**
+ * A parsed path, stored at the size its content needs.
+ *
+ * One allocation holds the header, the subpath array and every segment, in
+ * that order, so a path is one `malloc` and one `free` and the segments of a
+ * subpath stay contiguous for the flattening loop. The saving is not a tidy:
+ * fixed arrays for the worst case cost 75 KB per object, and a panel with
+ * 520 KB of RAM cannot hold six of those (`docs/pico-bring-up.md`).
+ */
 typedef struct mm_path {
-    mm_subpath_t subpaths[MM_MAX_SUBPATHS];
+    mm_subpath_t *subpaths;     /**< into the same block as this header */
     int subpath_count;
+    int segment_count;          /**< total across all subpaths */
     float length;
 } mm_path_t;
 
-/** Parse into a freshly allocated path, or NULL. Caller frees. */
+/**
+ * The parse target: fixed pools, sized for the refusal limits.
+ *
+ * Transient by design -- allocated by `mm_path_create`, filled by the parser,
+ * copied into an exactly sized path, and freed before the caller sees
+ * anything. It exists so that there is one grammar rather than a parser and a
+ * separate counting pass that could disagree about what a `d` string means.
+ */
+typedef struct {
+    mm_subpath_t subpaths[MM_MAX_SUBPATHS];
+    mm_segment_t segments[MM_MAX_SUBPATHS * MM_MAX_SEGMENTS];
+    int subpath_count;
+    int segment_count;
+    float length;
+} mm_path_scratch_t;
+
+/** Parse into a freshly allocated path of exactly the needed size, or NULL.
+ *  Caller frees with `mm_path_destroy`. */
 mm_path_t *mm_path_create(const char *d);
 void mm_path_destroy(mm_path_t *path);
 
-/** Parse an SVG `d` subset: M L H V C Q Z, absolute and relative.
- *  Returns false on anything else, rather than guessing. */
-bool mm_path_parse(const char *d, mm_path_t *out);
+/** Parse an SVG `d` subset: M L H V C Q Z, absolute and relative, into the
+ *  transient scratch. Returns false on anything else, rather than guessing. */
+bool mm_path_parse(const char *d, mm_path_scratch_t *out);
+
+/** Pack a parsed scratch into one exactly sized allocation. NULL on refusal. */
+mm_path_t *mm_path_pack(const mm_path_scratch_t *scratch);
+
+/** What this path costs, resident. Reported rather than estimated, because a
+ *  budget for a 520 KB panel is only worth as much as its arithmetic. */
+size_t mm_path_bytes(const mm_path_t *path);
 
 /** Flattened arc length of one cubic segment. */
 float mm_segment_length(mm_point_t from, const mm_segment_t *segment);

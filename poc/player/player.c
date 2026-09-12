@@ -204,6 +204,20 @@ static const mm_object_t *find(const mm_player_t *player, const char *object_id)
     return NULL;
 }
 
+size_t mm_player_path_bytes(const mm_player_t *player, const char *object_id)
+{
+    if(player == NULL) return 0;
+    if(object_id != NULL) {
+        const mm_object_t *object = find(player, object_id);
+        return object != NULL ? mm_path_bytes(object->path) : 0;
+    }
+    size_t total = 0;
+    for(int i = 0; i < player->scene.object_count; i++) {
+        total += mm_path_bytes(player->scene.objects[i].path);
+    }
+    return total;
+}
+
 double mm_player_scene_duration(const mm_player_t *player)
 {
     return player != NULL ? player->scene.duration_ms : 0.0;

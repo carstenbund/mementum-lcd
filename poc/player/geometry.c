@@ -75,19 +75,29 @@ static bool read_point(scanner_t *s, mm_point_t *out)
     return read_number(s, &out->x) && read_number(s, &out->y);
 }
 
-static mm_subpath_t *begin_subpath(mm_path_t *path, mm_point_t start)
+/** A new subpath, pointed at the unused tail of the scratch's segment pool. */
+static mm_subpath_t *begin_subpath(mm_path_scratch_t *path, mm_point_t start)
 {
     if(path->subpath_count >= MM_MAX_SUBPATHS) return NULL;
     mm_subpath_t *subpath = &path->subpaths[path->subpath_count++];
     memset(subpath, 0, sizeof(*subpath));
     subpath->start = start;
+    subpath->segments = &path->segments[path->segment_count];
     return subpath;
 }
 
-static bool push_cubic(mm_subpath_t *subpath, mm_point_t c1, mm_point_t c2, mm_point_t to)
+/** Segments are appended to the pool the enclosing subpath was pointed at, so
+ *  the caller passes both: the pool is what runs out, the subpath is what has
+ *  a limit of its own. */
+static bool push_cubic(mm_path_scratch_t *path, mm_subpath_t *subpath,
+                       mm_point_t c1, mm_point_t c2, mm_point_t to)
 {
     if(subpath == NULL || subpath->segment_count >= MM_MAX_SEGMENTS) return false;
+    if(path->segment_count >= (int)(sizeof(path->segments) / sizeof(path->segments[0]))) {
+        return false;
+    }
     mm_segment_t *segment = &subpath->segments[subpath->segment_count++];
+    path->segment_count++;
     segment->c1 = c1;
     segment->c2 = c2;
     segment->to = to;
@@ -95,25 +105,27 @@ static bool push_cubic(mm_subpath_t *subpath, mm_point_t c1, mm_point_t c2, mm_p
 }
 
 /** A line is a cubic whose controls sit on it -- one segment type downstream. */
-static bool push_line(mm_subpath_t *subpath, mm_point_t from, mm_point_t to)
+static bool push_line(mm_path_scratch_t *path, mm_subpath_t *subpath,
+                      mm_point_t from, mm_point_t to)
 {
     mm_point_t c1 = { from.x + (to.x - from.x) / 3.0f, from.y + (to.y - from.y) / 3.0f };
     mm_point_t c2 = { from.x + (to.x - from.x) * 2.0f / 3.0f,
                       from.y + (to.y - from.y) * 2.0f / 3.0f };
-    return push_cubic(subpath, c1, c2, to);
+    return push_cubic(path, subpath, c1, c2, to);
 }
 
-static bool push_quadratic(mm_subpath_t *subpath, mm_point_t from, mm_point_t control,
+static bool push_quadratic(mm_path_scratch_t *path, mm_subpath_t *subpath,
+                           mm_point_t from, mm_point_t control,
                            mm_point_t to)
 {
     mm_point_t c1 = { from.x + 2.0f / 3.0f * (control.x - from.x),
                       from.y + 2.0f / 3.0f * (control.y - from.y) };
     mm_point_t c2 = { to.x + 2.0f / 3.0f * (control.x - to.x),
                       to.y + 2.0f / 3.0f * (control.y - to.y) };
-    return push_cubic(subpath, c1, c2, to);
+    return push_cubic(path, subpath, c1, c2, to);
 }
 
-bool mm_path_parse(const char *d, mm_path_t *out)
+bool mm_path_parse(const char *d, mm_path_scratch_t *out)
 {
     if(d == NULL || out == NULL) return false;
     memset(out, 0, sizeof(*out));
@@ -146,7 +158,7 @@ bool mm_path_parse(const char *d, mm_path_t *out)
 
         if(op == 'Z') {
             if(current != NULL && current->segment_count > 0) {
-                push_line(current, cursor, start);
+                push_line(out, current, cursor, start);
                 current->closed = true;
             }
             cursor = start;
@@ -167,7 +179,7 @@ bool mm_path_parse(const char *d, mm_path_t *out)
             case 'L':
                 if(!read_point(&scanner, &point)) return false;
                 if(relative) { point.x += cursor.x; point.y += cursor.y; }
-                if(!push_line(current, cursor, point)) return false;
+                if(!push_line(out, current, cursor, point)) return false;
                 cursor = point;
                 break;
 
@@ -175,7 +187,7 @@ bool mm_path_parse(const char *d, mm_path_t *out)
                 if(!read_number(&scanner, &point.x)) return false;
                 point.y = cursor.y;
                 if(relative) point.x += cursor.x;
-                if(!push_line(current, cursor, point)) return false;
+                if(!push_line(out, current, cursor, point)) return false;
                 cursor = point;
                 break;
 
@@ -183,7 +195,7 @@ bool mm_path_parse(const char *d, mm_path_t *out)
                 if(!read_number(&scanner, &point.y)) return false;
                 point.x = cursor.x;
                 if(relative) point.y += cursor.y;
-                if(!push_line(current, cursor, point)) return false;
+                if(!push_line(out, current, cursor, point)) return false;
                 cursor = point;
                 break;
 
@@ -198,7 +210,7 @@ bool mm_path_parse(const char *d, mm_path_t *out)
                     c2.x += cursor.x; c2.y += cursor.y;
                     point.x += cursor.x; point.y += cursor.y;
                 }
-                if(!push_cubic(current, c1, c2, point)) return false;
+                if(!push_cubic(out, current, c1, c2, point)) return false;
                 cursor = point;
                 break;
             }
@@ -210,7 +222,7 @@ bool mm_path_parse(const char *d, mm_path_t *out)
                     control.x += cursor.x; control.y += cursor.y;
                     point.x += cursor.x; point.y += cursor.y;
                 }
-                if(!push_quadratic(current, cursor, control, point)) return false;
+                if(!push_quadratic(out, current, cursor, control, point)) return false;
                 cursor = point;
                 break;
             }
@@ -236,20 +248,76 @@ bool mm_path_parse(const char *d, mm_path_t *out)
 }
 
 
+/** Round up to a pointer boundary: the three regions share one block. */
+static size_t align_up(size_t value)
+{
+    const size_t unit = sizeof(void *);
+    return (value + unit - 1) / unit * unit;
+}
+
+mm_path_t *mm_path_pack(const mm_path_scratch_t *scratch)
+{
+    if(scratch == NULL || scratch->subpath_count <= 0) return NULL;
+
+    /* One block: header, then the subpath array, then every segment. A path is
+     * therefore one allocation whatever it contains, which is what an MCU heap
+     * wants, and the segments of a subpath stay contiguous for flattening. */
+    const size_t header = align_up(sizeof(mm_path_t));
+    const size_t subpaths = align_up((size_t)scratch->subpath_count * sizeof(mm_subpath_t));
+    const size_t segments = (size_t)scratch->segment_count * sizeof(mm_segment_t);
+
+    uint8_t *block = calloc(1, header + subpaths + segments);
+    if(block == NULL) return NULL;
+
+    mm_path_t *path = (mm_path_t *)block;
+    path->subpaths = (mm_subpath_t *)(block + header);
+    path->subpath_count = scratch->subpath_count;
+    path->segment_count = scratch->segment_count;
+    path->length = scratch->length;
+
+    mm_segment_t *pool = (mm_segment_t *)(block + header + subpaths);
+    int used = 0;
+    for(int i = 0; i < scratch->subpath_count; i++) {
+        const mm_subpath_t *from = &scratch->subpaths[i];
+        mm_subpath_t *to = &path->subpaths[i];
+        *to = *from;
+        to->segments = pool + used;
+        if(from->segment_count > 0) {
+            memcpy(to->segments, from->segments,
+                   (size_t)from->segment_count * sizeof(mm_segment_t));
+        }
+        used += from->segment_count;
+    }
+    return path;
+}
+
+size_t mm_path_bytes(const mm_path_t *path)
+{
+    if(path == NULL) return 0;
+    return align_up(sizeof(mm_path_t))
+           + align_up((size_t)path->subpath_count * sizeof(mm_subpath_t))
+           + (size_t)path->segment_count * sizeof(mm_segment_t);
+}
+
 mm_path_t *mm_path_create(const char *d)
 {
-    mm_path_t *path = calloc(1, sizeof(*path));
-    if(path == NULL) return NULL;
-    if(!mm_path_parse(d, path)) {
-        free(path);
-        return NULL;
+    /* The scratch is the worst case and is gone by the time this returns; what
+     * stays is the size the content actually needed. Six real paths were
+     * 450 KB resident before this and are ~70 KB after it. */
+    mm_path_scratch_t *scratch = calloc(1, sizeof(*scratch));
+    if(scratch == NULL) return NULL;
+
+    mm_path_t *path = NULL;
+    if(mm_path_parse(d, scratch)) {
+        path = mm_path_pack(scratch);
     }
+    free(scratch);
     return path;
 }
 
 void mm_path_destroy(mm_path_t *path)
 {
-    free(path);
+    free(path);                 /* one block, so one free */
 }
 
 /* -- deformation ---------------------------------------------------------- */

@@ -47,21 +47,27 @@ board is not:
 | | bytes | note |
 |---|---|---|
 | `mm_scene_t` | 19 480 | fixed arrays: 32 objects, 32 animations, 8 layers |
-| `mm_path_t` | **75 016** | **per path object**, `calloc`ed at load |
+| parsed path, `poc-signature` | 344 | measured with `mm_path_bytes` |
+| parsed path, one handwritten line | 6 728 | the largest single path in the repository |
+| all six paths of `du-kannst` | **14 512** | was 450 096 before right-sizing |
+| `mm_path_scratch_t` | 75 792 | **transient**: one at a time, freed at load |
 | `du-kannst.json` | 8 129 | the scene document itself |
 | canvas 450×250 ARGB8888 | 450 000 | `LV_COLOR_DEPTH 32` |
 | canvas 450×250 RGB565 | 225 000 | `LV_COLOR_DEPTH 16` |
 
-A six-path scene is therefore **~450 KB of parsed geometry** before a pixel is
-drawn, and ~900 KB with a 32-bit canvas. The S3's internal SRAM is 512 KB and
-some of it is LVGL's and the network stack's, so:
+A six-path scene is therefore **~15 KB of parsed geometry**, and the canvas is
+everything. The S3's internal SRAM is 512 KB and some of it is LVGL's and the
+network stack's, so:
 
-* **PSRAM is mandatory**, and the scene and canvas belong there
-  (`ps_malloc`, `MALLOC_CAP_SPIRAM`).
-* **Right-sizing `mm_path_t` is a bring-up task, not a later tidy.** The step
-  report has it as "now" for a reason: 75 KB per object is fixed arrays sized
-  for a worst case (64 subpaths × 48 segments) that a real scene does not reach.
-  Content that needs 11.5 KB currently costs 75 KB.
+* **PSRAM is still needed, but for the canvas.** 450 KB at 32 bits, 225 KB at
+  16, against ~180 KB of internal RAM once `.bss` is placed. The geometry no
+  longer competes for it.
+* ~~**Right-sizing `mm_path_t`**~~ **Done, and it was worth doing.** A path is
+  now one allocation of exactly the size its content needs: 344 bytes for the
+  signature, 6.7 KB for the heaviest handwritten line, 14.5 KB for the whole
+  writing scene — 31× less than the fixed arrays it replaced. The worst case
+  survives as a *refusal* limit and as a transient parse buffer, so there is
+  still one grammar and the player still declines what it cannot draw.
 * **Colour depth is a decision to take with a measurement.** 32-bit is what the
   host renders and what layer alpha needs; a single-scene panel with an opaque
   background may not need alpha at all, and 16-bit halves both memory and
@@ -138,8 +144,9 @@ Two corrections to what this document assumed:
 * **"ThorVG will not fit in the default 1.2 MB partition" was wrong.** It fits
   in 565 KB. The 3 MB partition stays for OTA headroom, not necessity.
 * **The PSRAM case is stronger, not weaker.** 104 KB of `.bss` before a scene
-  exists leaves ~180 KB of internal RAM, and a single path object is 75 KB.
-  Nothing about the scene or the canvas can come from there.
+  exists leaves ~180 KB of internal RAM. The geometry now fits in that (15 KB
+  for a six-path scene since right-sizing); the canvas does not, at either
+  colour depth, on a 450×250 panel.
 
 Still unanswered by a compiler, and still needing a board: frame time, PSRAM
 bandwidth, whether the display flush keeps up, and skew between two units.
@@ -160,7 +167,7 @@ that decide things:
 | | how | decides |
 |---|---|---|
 | frame time, by scene | `esp_timer` around evaluate + render | whether 30 fps holds, and at which colour depth |
-| free heap / PSRAM | `/status` already reports `ESP.getFreeHeap()` | how many path objects fit; whether right-sizing is enough |
+| free heap / PSRAM | `/status` already reports `ESP.getFreeHeap()` | what is left once the canvas is placed; the geometry is now 15 KB |
 | scene fetch time | `/play` arrival → `loaded` | whether `DISPLAY_LEAD_MS` is big enough on real Wi-Fi |
 | clock offset and RTT | already computed in `sync_clock()` | the clock model, on a radio rather than a queue |
 | **two-unit skew** | both panels, one scene, a camera at 240 fps | the gate the whole design exists to satisfy (§0.4) |
@@ -176,8 +183,9 @@ the only one that cannot be faked.
    remains unknown, and speed was always the half a compiler cannot settle.
 2. **PSRAM bandwidth.** The canvas and the parsed geometry both live there; an
    ARGB8888 450×250 canvas is 450 KB touched per frame.
-3. **`mm_path_t` at 75 KB an object.** Right-size before believing any memory
-   result — six paths is 450 KB of mostly zeroes today.
+3. ~~**`mm_path_t` at 75 KB an object.**~~ **Answered: a path costs what its
+   content needs.** Six paths is 14.5 KB, not 450 KB. What a board still has to
+   say is how much of the rest — canvas, LVGL, Wi-Fi — fits where.
 4. **The display driver.** Every board is different and none of this is
    portable. It is why Path A exists.
 5. **Wi-Fi timing.** `DISPLAY_LEAD_MS` is 2000 ms by design and 250 ms in the

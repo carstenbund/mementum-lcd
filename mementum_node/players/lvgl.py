@@ -84,6 +84,8 @@ class PlayerLibrary:
         lib.mm_player_render.argtypes = [c_void_p, c_double, ctypes.POINTER(ctypes.c_uint8), c_size_t]
         lib.mm_player_render.restype = c_int
         lib.mm_player_error.restype = c_char_p
+        lib.mm_player_path_bytes.argtypes = [c_void_p, c_char_p]
+        lib.mm_player_path_bytes.restype = c_size_t
         lib.mm_player_scene_duration.argtypes = [c_void_p]
         lib.mm_player_scene_duration.restype = c_double
         lib.mm_player_object_count.argtypes = [c_void_p]
@@ -183,6 +185,17 @@ class LvglPlayer:
         self._library.raw.mm_player_clear_ripples(self._handle)
 
     # -- introspection, for conformance tests ---------------------------
+
+    def path_bytes(self, object_id: str | None = None) -> int:
+        """What the parsed geometry costs, resident, on the machine running it.
+
+        One object, or the whole scene when asked for nothing in particular.
+        The number matters because a panel may have 520 KB in total, and a
+        budget is only worth as much as its arithmetic (`docs/pico-bring-up.md`).
+        """
+        return int(self._library.raw.mm_player_path_bytes(
+            self._handle, object_id.encode("utf-8") if object_id else None
+        ))
 
     def path_length(self, object_id: str) -> float:
         return float(

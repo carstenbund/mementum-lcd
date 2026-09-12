@@ -158,9 +158,11 @@ content meets the real code path.
 * **Everything about the hardware.** Frame rate, PSRAM bandwidth, LCD flush
   cost, whether LVGL builds under ESP-IDF with these switches, real Wi-Fi
   timing, and skew between two physical units.
-* **Memory.** Parsed geometry is ~73 KB per path object where the content needs
-  11.5 KB — fixed arrays sized for a worst case that does not occur. Free RAM,
-  once right-sized.
+* **Memory.** Parsed geometry is no longer the question: a path is packed to
+  the size its content needs, so the whole writing scene is 14.5 KB rather than
+  450 KB. What is unproven is the rest of the budget on a board — canvas,
+  LVGL's own buffers, the network stack — and PSRAM bandwidth for a 450 KB
+  canvas touched every frame.
 * **The symbol model.** Named parts, one geometry reused as instances, and
   `transform.rotate` — which does not exist in either player — are the last IR
   pieces before v1 could freeze (decision 0005).
@@ -223,8 +225,9 @@ On 2026-09-12 the firmware was built for the first time, both ways, in CI:
 
 Three claims in this repository were wrong and now say so: that ThorVG would
 not fit in a 1.2 MB partition (it fits in 565 KB); that the PSRAM case rested
-on the size of a scene (it rests on 104 KB of `.bss` leaving 180 KB, against
-75 KB for one path object); and that `poc/player/` was portable C that "the
+on the size of a scene (it rests on 104 KB of `.bss` leaving 180 KB, against a
+450 KB canvas — the geometry it also blamed is now 15 KB); and that
+`poc/player/` was portable C that "the
 host suite exercises" — true, but insufficient, because each of the three
 toolchains found something the other two could not. A C header reaching the
 Xtensa assembler is invisible to a build that never assembles; a missing

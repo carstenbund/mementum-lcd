@@ -64,6 +64,9 @@ const char *mm_player_error(void);
 /* -- introspection, for the conformance tests ------------------------------ */
 
 double mm_player_scene_duration(const mm_player_t *player);
+/** Resident bytes of one object's parsed geometry, or of every object when
+ *  `object_id` is NULL. The memory budget, measured on whatever is running it. */
+size_t mm_player_path_bytes(const mm_player_t *player, const char *object_id);
 int    mm_player_object_count(const mm_player_t *player);
 double mm_player_path_length(const mm_player_t *player, const char *object_id);
 int    mm_player_subpath_count(const mm_player_t *player, const char *object_id);

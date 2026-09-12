@@ -129,12 +129,14 @@ static bool parse_object(const cJSON *raw, mm_object_t *object, char *error, siz
                  object->id, MM_MAX_SUBPATHS, MM_MAX_SEGMENTS);
             return false;
         }
-        const mm_path_t path = *object->path;
+        /* By pointer: the header owns pointers into its own block, so copying
+         * it by value would alias the pools rather than duplicate them. */
+        const mm_path_t *path = object->path;
         /* The composer's length wins when it provides one: measured once,
          * agreed by every player, and no flattening pass on the device. */
         const cJSON *declared = cJSON_GetObjectItemCaseSensitive(raw, "length");
         object->length_declared = cJSON_IsNumber(declared);
-        object->length = object->length_declared ? (float)declared->valuedouble : path.length;
+        object->length = object->length_declared ? (float)declared->valuedouble : path->length;
 
         const cJSON *deform = cJSON_GetObjectItemCaseSensitive(raw, "deform");
         if(cJSON_IsObject(deform)) {
@@ -157,14 +159,14 @@ static bool parse_object(const cJSON *raw, mm_object_t *object, char *error, siz
             object->deform.sway = number_or(deform, "sway", object->deform.amplitude * 0.4f);
         }
 
-        object->subpath_count = path.subpath_count;
+        object->subpath_count = path->subpath_count;
         const cJSON *subpaths = cJSON_GetObjectItemCaseSensitive(raw, "subpaths");
         const bool subpaths_declared =
-            cJSON_IsArray(subpaths) && cJSON_GetArraySize(subpaths) == path.subpath_count;
-        for(int i = 0; i < path.subpath_count; i++) {
+            cJSON_IsArray(subpaths) && cJSON_GetArraySize(subpaths) == path->subpath_count;
+        for(int i = 0; i < path->subpath_count; i++) {
             object->subpath_length[i] =
                 subpaths_declared ? (float)cJSON_GetArrayItem(subpaths, i)->valuedouble
-                                  : path.subpaths[i].length;
+                                  : path->subpaths[i].length;
         }
     }
     else if(strcmp(type->valuestring, "text") == 0) {

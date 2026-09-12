@@ -348,3 +348,57 @@ def test_the_player_reports_a_path_beyond_its_bounds(payload):
 
 #: The C player's subpath limit; the test above only needs to exceed it.
 MM_MAX_SUBPATHS_GUESS = 64
+
+#: What a path cost when its arrays were sized for the worst case, before
+#: `mm_path_create` started packing them. Kept as the number these tests are
+#: defending against rather than as a bound anybody should aim at.
+BYTES_PER_PATH_BEFORE = 75_016
+
+
+def test_a_path_costs_what_its_content_needs(payload):
+    """The player runs on a panel with 520 KB of RAM and no PSRAM, so the
+    difference between "sized for the worst case" and "sized for this content"
+    decides whether a scene fits at all. Both numbers are measured on whatever
+    is running the test, not estimated."""
+    player = LvglPlayer()
+    player.bind(payload, None, 480, 320)
+
+    signature = player.path_bytes("signature")
+    assert signature > 0, "a loaded path has to cost something"
+    assert signature < 4_096, (
+        f"the test signature is a handful of strokes and should cost a handful "
+        f"of kilobytes; it costs {signature} bytes"
+    )
+    assert signature * 8 < BYTES_PER_PATH_BEFORE, "this is meant to be a large win"
+
+
+def test_a_whole_writing_scene_fits_a_microcontroller():
+    """Six paths of real handwriting: 450 KB of fixed arrays before this, and
+    the budget in docs/pico-bring-up.md depends on the new figure."""
+    import os
+
+    scene_path = os.path.join(os.path.dirname(SCENE_PATH), "du-kannst.json")
+    with open(scene_path, "rb") as fh:
+        writing = fh.read()
+    player = LvglPlayer()
+    player.bind(writing, None, 450, 250)
+
+    total = player.path_bytes()
+    assert 0 < total < 32_768, f"the whole scene's geometry is {total} bytes"
+    assert total < 6 * BYTES_PER_PATH_BEFORE / 10, "an order of magnitude, not a trim"
+
+
+def test_packing_keeps_every_subpath_separate():
+    """Segments now live in one pool with the subpaths pointing into it, which
+    is the part of packing that could plausibly go wrong: three strokes must
+    still be three strokes, each with its own length."""
+    with open(THREE_STROKES, "rb") as fh:
+        strokes = fh.read()
+    player = LvglPlayer()
+    player.bind(strokes, None, 240, 120)
+
+    assert player.subpath_count("strokes") == 3
+    total = player.path_length("strokes")
+    assert total == pytest.approx(300.0, abs=1.0), "three hundred units of pen"
+    first = player.render(1400.0)
+    assert player.render(1400.0).data == first.data
