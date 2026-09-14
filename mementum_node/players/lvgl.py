@@ -103,6 +103,8 @@ class PlayerLibrary:
         lib.mm_player_ripple_count.argtypes = [c_void_p]
         lib.mm_player_ripple_count.restype = c_int
         lib.mm_player_clear_ripples.argtypes = [c_void_p]
+        lib.mm_player_load_assets.argtypes = [c_void_p, c_char_p]
+        lib.mm_player_load_assets.restype = c_int
 
     def error(self) -> str:
         message = self._lib.mm_player_error()
@@ -216,6 +218,18 @@ class LvglPlayer:
 
     def scene_duration(self) -> float:
         return float(self._library.raw.mm_player_scene_duration(self._handle))
+
+    def load_assets(self, root: str) -> int:
+        """Check the scene's image files under an LVGL path prefix ("S:" is the
+        host filesystem) and make the good ones drawable. Returns how many
+        cannot be drawn; `library.error()` names the first."""
+        if self._handle is None:
+            raise LvglPlayerError("player holds no scene")
+        return int(self._library.raw.mm_player_load_assets(self._handle, root.encode("utf-8")))
+
+    @property
+    def library(self) -> PlayerLibrary:
+        return self._library
 
     # -- lifetime -------------------------------------------------------
 

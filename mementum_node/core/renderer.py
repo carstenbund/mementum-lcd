@@ -266,7 +266,15 @@ def draw_text(
     )
 
 
-_RENDERERS = {"rect": _render_rect, "path": _render_path, "text": _render_text}
+def _render_image(frame: Frame, obj: SceneObject, viewport: Viewport, alpha: float) -> None:
+    """Not drawn. The picture is a file in the panel's asset store, which the
+    reference renderer does not read -- so frames with images are not covered
+    by the C/Python parity tests."""
+
+
+_RENDERERS = {
+    "rect": _render_rect, "path": _render_path, "text": _render_text, "image": _render_image,
+}
 
 
 def render_scene(

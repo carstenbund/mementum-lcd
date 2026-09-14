@@ -1,5 +1,6 @@
 #include "player.h"
 
+#include "assets_lvgl.h"
 #include "easing.h"
 #include "evaluator.h"
 #include "geometry.h"
@@ -40,6 +41,15 @@ static void set_error(const char *fmt, ...)
 const char *mm_player_error(void)
 {
     return g_error;
+}
+
+int mm_player_load_assets(mm_player_t *player, const char *root)
+{
+    if(player == NULL || root == NULL) {
+        set_error("bad arguments to mm_player_load_assets");
+        return -1;
+    }
+    return mm_scene_load_assets(&player->scene, root, g_error, sizeof(g_error));
 }
 
 static void flush_cb(lv_display_t *display, const lv_area_t *area, uint8_t *px_map)

@@ -21,8 +21,22 @@
 #define LV_DRAW_BUF_ALIGN           4
 #define LV_USE_DRAW_SW              1
 #define LV_DRAW_SW_SUPPORT_ARGB8888 1
+#define LV_DRAW_SW_SUPPORT_XRGB8888 1
 #define LV_DRAW_SW_SUPPORT_RGB565   1
+#define LV_DRAW_SW_SUPPORT_RGB565A8 1           /* image assets with transparency */
 #define LV_DRAW_SW_DRAW_UNIT_CNT    1           /* single-threaded: determinism first */
+
+/* Image assets (assets_lvgl.c): LVGL binary images read through the file
+ * system layer. "S:" is the host's own filesystem, standing where a panel's
+ * SD card stands. A scene is drawn strip by strip on a panel, so a decoded
+ * image has to stay in the cache rather than be read again for every strip. */
+#define LV_USE_FS_STDIO             1
+#define LV_FS_STDIO_LETTER          'S'
+#define LV_FS_STDIO_PATH            ""
+#define LV_FS_STDIO_CACHE_SIZE      0
+#define LV_BIN_DECODER_RAM_LOAD     1
+#define LV_CACHE_DEF_SIZE           (4 * 1024 * 1024)
+#define LV_IMAGE_HEADER_CACHE_DEF_CNT 16
 
 /* The R1 question lives here. */
 #define LV_USE_FLOAT                1           /* required by lv_matrix */

@@ -349,6 +349,36 @@ static void render_text(lv_layer_t *layer, const viewport_t *viewport,
     lv_draw_label(layer, &dsc, &area);
 }
 
+/** An LVGL binary image from the asset store, at its authored size: `w` and
+ *  `h` are the picture's own pixels, and only the scene's fit and the object's
+ *  transform scale it. LVGL decodes and caches it; this only says where. */
+static void render_image(lv_layer_t *layer, const viewport_t *viewport,
+                         const mm_object_t *object, lv_opa_t opa)
+{
+    if(!object->asset_ok || object->w <= 0.0f || object->h <= 0.0f) return;
+
+    lv_draw_image_dsc_t dsc;
+    lv_draw_image_dsc_init(&dsc);
+    dsc.src = object->asset_path;
+    dsc.opa = opa;
+
+    const float sx = viewport->scale_x * object->transform.scale;
+    const float sy = viewport->scale_y * object->transform.scale;
+    if(sx != 1.0f || sy != 1.0f) {
+        dsc.scale_x = (int32_t)(sx * LV_SCALE_NONE + 0.5f);
+        dsc.scale_y = (int32_t)(sy * LV_SCALE_NONE + 0.5f);
+        dsc.pivot.x = 0;
+        dsc.pivot.y = 0;
+    }
+
+    const lv_fpoint_t origin = to_device(viewport, object, object->x, object->y);
+    lv_area_t area = {
+        (int32_t)origin.x, (int32_t)origin.y,
+        (int32_t)origin.x + (int32_t)object->w - 1, (int32_t)origin.y + (int32_t)object->h - 1,
+    };
+    lv_draw_image(layer, &dsc, &area);
+}
+
 void mm_render_scene(lv_layer_t *layer, const mm_scene_t *scene, int out_w, int out_h,
                      const mm_ripple_t *ripples, int ripple_count, float scene_time_ms)
 {
@@ -372,6 +402,7 @@ void mm_render_scene(lv_layer_t *layer, const mm_scene_t *scene, int out_w, int 
                                 scene_time_ms);
                     break;
                 case MM_OBJ_TEXT: render_text(layer, &viewport, object, opa); break;
+                case MM_OBJ_IMAGE: render_image(layer, &viewport, object, opa); break;
                 default: break;
             }
         }

@@ -179,6 +179,31 @@ static bool parse_object(const cJSON *raw, mm_object_t *object, char *error, siz
         object->y = number_or(raw, "y", 0.0f);
         object->color = parse_color(raw, "color", white);
     }
+    else if(strcmp(type->valuestring, "image") == 0) {
+        object->type = MM_OBJ_IMAGE;
+        const cJSON *src = cJSON_GetObjectItemCaseSensitive(raw, "src");
+        if(!cJSON_IsString(src) || src->valuestring[0] == '\0') {
+            fail(error, error_size, "image %s has no src", object->id);
+            return false;
+        }
+        /* A truncated name would load some other file, so a long one is
+         * refused rather than shortened. */
+        if(strlen(src->valuestring) >= sizeof(object->text)) {
+            fail(error, error_size, "image %s: src longer than %d characters",
+                 object->id, (int)sizeof(object->text) - 1);
+            return false;
+        }
+        copy_string(object->text, sizeof(object->text), src, "");
+        object->x = number_or(raw, "x", 0.0f);
+        object->y = number_or(raw, "y", 0.0f);
+        object->w = number_or(raw, "w", 0.0f);
+        object->h = number_or(raw, "h", 0.0f);
+        /* 0 means undeclared: the file is then only required to exist. */
+        const cJSON *size = cJSON_GetObjectItemCaseSensitive(raw, "size");
+        object->asset_size = cJSON_IsNumber(size) ? (uint32_t)size->valuedouble : 0u;
+        const cJSON *crc = cJSON_GetObjectItemCaseSensitive(raw, "crc32");
+        object->asset_crc = cJSON_IsNumber(crc) ? (uint32_t)crc->valuedouble : 0u;
+    }
     else {
         fail(error, error_size, "unsupported object type: %s", type->valuestring);
         return false;

@@ -185,6 +185,7 @@ _OBJECT_KEYS = {
     "rect": ("x", "y", "w", "h", "fill"),
     "path": ("d", "stroke", "stroke_width", "fill", "length"),
     "text": ("content", "x", "y", "font_id", "color", "size"),
+    "image": ("src", "x", "y", "w", "h", "size", "crc32"),
 }
 
 

@@ -61,6 +61,11 @@ int    mm_schedule_over(const void *schedule, double now);
 /** Why the last call failed. Never NULL. */
 const char *mm_player_error(void);
 
+/** Check the scene's image files under an LVGL path prefix such as
+ *  "S:/assets/" (see assets_lvgl.h) and make the good ones drawable. Returns
+ *  how many cannot be drawn; mm_player_error() names the first. */
+int mm_player_load_assets(mm_player_t *player, const char *root);
+
 /* -- introspection, for the conformance tests ------------------------------ */
 
 double mm_player_scene_duration(const mm_player_t *player);

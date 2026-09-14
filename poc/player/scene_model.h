@@ -25,13 +25,15 @@
 #define MM_MAX_ID          32
 #define MM_MAX_TEXT        64
 #define MM_MAX_PATH_DATA   8192
+#define MM_MAX_ASSET_PATH  96
 
 struct mm_path;
 
 typedef enum {
     MM_OBJ_RECT = 0,
     MM_OBJ_PATH,
-    MM_OBJ_TEXT
+    MM_OBJ_TEXT,
+    MM_OBJ_IMAGE
 } mm_object_type_t;
 
 typedef enum {
@@ -138,6 +140,16 @@ typedef struct {
     char text[MM_MAX_TEXT];
     char font_id[MM_MAX_ID];
     mm_color_t color;
+
+    /* image: x, y, w, h above; `text` holds the asset's name. The file is
+     * checked against size and CRC32 by mm_scene_load_assets(), which also
+     * fills `asset_path` -- kept here because LVGL draws from a queue, later
+     * than it is asked to, and the path string has to outlive the call. An
+     * image that has not been checked, or did not match, is not drawn. */
+    uint32_t asset_size;
+    uint32_t asset_crc;
+    bool asset_ok;
+    char asset_path[MM_MAX_ASSET_PATH];
 } mm_object_t;
 
 typedef struct {
