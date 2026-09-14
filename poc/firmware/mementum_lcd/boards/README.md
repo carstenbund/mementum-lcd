@@ -37,7 +37,7 @@ and to `../board_config.h`. Nothing else in the sketch changes.
 
 | file | board | chip | bus | controller | PSRAM | confidence |
 |---|---|---|---|---|---|---|
-| `guition_jc3248w535.h` | Guition JC3248W535 (most likely diymore "ESP32-S3 3.5 inch Capacitive Touch LCD" — check the back for "JC3248W535") | ESP32-S3, Xtensa, 16 MB flash | QSPI | AXS15231B, 320x480, touch in the same chip (I2C 0x3B, not wired up) | yes, 8 MB octal | pins from F1ATB's working Arduino setup, matching the ESPHome config; **not confirmed on a board in hand**. Needs GFX Library for Arduino 1.6.0 |
+| `guition_jc3248w535.h` | Guition JC3248W535 (most likely diymore "ESP32-S3 3.5 inch Capacitive Touch LCD" — check the back for "JC3248W535") | ESP32-S3, Xtensa, 16 MB flash | QSPI | AXS15231B, 320x480, touch in the same chip (I2C 0x3B, not wired up) | yes, 8 MB octal | pins from GFX Library for Arduino's own JC3248W535 example, matching F1ATB and the ESPHome config; **not confirmed on a board in hand**. Needs the 320x480 type1 init sequence passed explicitly (GFX 1.6.1+); built against GFX 1.6.7 |
 | `sunton_esp32_3248s035.h` | Sunton/JC ESP32-3248S035 "Cheap Yellow Display" family | **classic ESP32 (WROOM-32), Xtensa LX6**, 4 MB flash | 4-wire SPI | ST7796, 480x320 | usually **none** — check the module | pins are this family's community-documented set. Not an S3 board: GPIO 27 is flash/PSRAM on an S3 |
 | `waveshare_esp32s3_lcd_147.h` | Waveshare ESP32-S3-LCD-1.47, and rev **1.47B** (diymore "1.47 Inch LCD Screen Development Board" is the B: adds QMI8658 IMU and Li-ion charging) | ESP32-S3R8, Xtensa, 16 MB flash | 4-wire SPI | ST7789, 172x320 (34-column offset) | yes, 8 MB, in package | pins are Waveshare's published table for the non-B board; B is reported to keep them, unconfirmed |
 | `waveshare_esp32c6_lcd_13.h` | Waveshare ESP32-C6-LCD-1.3 (diymore "ESP32-C6 1.3 inch OLED", which mislabels the panel — it is a colour IPS LCD) | **ESP32-C6, RISC-V** | 4-wire SPI | ST7789V2, 240x240 | **none — the chip has no PSRAM interface at all** | pins read directly off Waveshare's schematic; the chip itself carries two open risks the other two boards don't (see the header) |
@@ -56,7 +56,7 @@ before spending time on it.
 you picked:
 
 ```bash
-# guition_jc3248w535.h — and install GFX Library for Arduino 1.6.0, not 1.6.1
+# guition_jc3248w535.h
 FQBN=esp32:esp32:esp32s3 OPTS=PSRAM=opi,PartitionScheme=huge_app,FlashSize=16M,CPUFreq=240,USBMode=hwcdc,CDCOnBoot=cdc ./build.sh /dev/ttyACM0
 
 # waveshare_esp32s3_lcd_147.h (1.47 and 1.47B)

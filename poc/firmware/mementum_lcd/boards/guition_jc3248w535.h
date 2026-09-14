@@ -7,16 +7,19 @@
  * Confirm by the silkscreen on the back ("JC3248W535"). If it says something
  * else, it is probably the ST7796 + FT6336 variant, which needs other pins.
  *
- * Pins and the Arduino_GFX lines are F1ATB's working Arduino setup
- * (f1atb.fr, "ESP32-S3 3.5 inch Capacitive Touch IPS Display – Setup"),
- * consistent with the ESPHome community config for JC3248W535C. They are
- * not confirmed on a board in hand; gate A2 does that.
+ * Pins and the Arduino_GFX lines are GFX Library for Arduino's own
+ * JC3248W535 definition (v1.6.7, examples/PDQgraphicstest/
+ * Arduino_GFX_dev_device.h), matching F1ATB's Arduino setup and the ESPHome
+ * community config. Not confirmed on a board in hand; gate A2 does that.
  *
  * Known on this board, from those sources, not measured here:
  *
- *   - Use GFX Library for Arduino 1.6.0. F1ATB reports 1.6.1 does not work
- *     with it; build.sh installs the latest unless pinned.
- *   - ESPHome users saw corrupted updates with LVGL's partial redraws. The
+ *   - The init sequence must be named. Since GFX 1.6.1 the AXS15231B default
+ *     is the 180x640 panel's; this 320x480 panel needs the type1 sequence.
+ *     That change is the "1.6.1 broke the AXS15231B" reports
+ *     (moononournation/Arduino_GFX#803), not a regression.
+ *   - GFX's own example wraps this panel in a full-frame Arduino_Canvas, and
+ *     ESPHome users saw corrupted updates with LVGL's partial redraws. The
  *     sketch flushes in 40-line strips; if the picture tears or smears, try
  *     full-frame refresh before suspecting the pins.
  *   - Reset: F1ATB passes GFX_NOT_DEFINED; the ESPHome config names GPIO 16.
@@ -51,8 +54,11 @@ static inline Arduino_GFX *board_gfx_new() {
     Arduino_DataBus *bus = new Arduino_ESP32QSPI(
         PIN_LCD_CS, PIN_LCD_SCK, PIN_LCD_D0, PIN_LCD_D1, PIN_LCD_D2, PIN_LCD_D3);
     return new Arduino_AXS15231B(bus, PIN_LCD_RST, PIN_LCD_ROTATION,
-                                 false /* ips inversion off, as F1ATB */,
-                                 PANEL_WIDTH, PANEL_HEIGHT);
+                                 false /* ips inversion off */,
+                                 PANEL_WIDTH, PANEL_HEIGHT,
+                                 0, 0, 0, 0 /* no col/row offsets */,
+                                 axs15231b_320480_type1_init_operations,
+                                 sizeof(axs15231b_320480_type1_init_operations));
 }
 
 static inline void board_backlight_on() {

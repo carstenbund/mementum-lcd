@@ -28,8 +28,8 @@ sh "$here/link.sh"
 echo "== libraries =="
 # GFX Library for Arduino drives the panel itself (whichever bus and chip the
 # board header names); LVGL only ever sees its flush callback. Pinned to the
-# version CI builds with: 1.6.1 is reported broken on the AXS15231B.
-arduino-cli lib install "GFX Library for Arduino@1.6.0" >/dev/null 2>&1 || true
+# version CI builds with; 1.6.5+ is needed for ESP32 Arduino core 3.3.6+.
+arduino-cli lib install "GFX Library for Arduino@1.6.7" >/dev/null 2>&1 || true
 # The vendored checkout rather than the registry's copy, so the panel compiles
 # the LVGL the host suite was measured against -- patches included. lv_conf.h
 # sits beside the library folder, which is where LVGL looks for it, and is the
