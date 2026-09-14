@@ -28,6 +28,7 @@
 #include <Arduino.h>
 #include <lvgl.h>
 
+#include "board_config.h"   // PANEL_WIDTH/HEIGHT, board_gfx_new(), board_backlight_on()
 #include "net.h"
 
 extern "C" {
@@ -39,17 +40,34 @@ extern "C" {
 }
 
 // ---- the panel ------------------------------------------------------------
+//
+// Which board this is is entirely board_config.h's business (see
+// boards/README.md) — this file only ever sees PANEL_WIDTH, PANEL_HEIGHT
+// and the Arduino_GFX* that board hands back.
+
+// 1: draw the scene compiled into scene_embedded.h (make it with
+//    embed_scene.py) -- no Wi-Fi, no server, no clock sync.
+// 0: join the wall: register with the control server and draw what it sends.
+#define MM_STANDALONE        1
+// Standalone only: 1 replays the scene's animations, 0 plays once and holds.
+#define MM_STANDALONE_LOOP   1
+
+#if MM_STANDALONE
+#include "scene_embedded.h"   // MM_EMBEDDED_SCENE
+#endif
 
 static const mm_net_config CONFIG = {
     .ssid = "mementum",
     .password = "mementum",
     .server = "http://192.168.4.1:8080",
     .listen_port = 80,
-    .width = 450,
-    .height = 250,
+    .width = PANEL_WIDTH,
+    .height = PANEL_HEIGHT,
     .x = 0.0f,                 // where this panel stands, in metres
     .y = 0.0f,
 };
+
+static Arduino_GFX *gfx = board_gfx_new();
 
 static lv_display_t *display = nullptr;
 static lv_obj_t *canvas = nullptr;
@@ -61,23 +79,105 @@ static int loaded_scene_id = 0;
 
 // ---- display --------------------------------------------------------------
 
+// LVGL's own render buffer for the panel, in the panel's native format
+// (RGB565 — ST7796 is a 16-bit SPI panel). This is separate from the
+// mementum canvas below, which stays ARGB8888 for host parity; LVGL's
+// software renderer blends one into the other (LV_DRAW_SW_SUPPORT_* in
+// lv_conf.h is why both formats are compiled in).
+static void flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map) {
+    const uint32_t w = area->x2 - area->x1 + 1;
+    const uint32_t h = area->y2 - area->y1 + 1;
+    gfx->draw16bitRGBBitmap(area->x1, area->y1, (uint16_t *)px_map, w, h);
+    lv_display_flush_ready(disp);
+}
+
+// LVGL's clock. Without it no refresh timer ever fires, flush_cb is never
+// called, and the panel stays on gfx->fillScreen() forever. A wrapper rather
+// than millis itself: millis returns unsigned long, and the callback type is
+// uint32_t(void), which C++ will not convert between.
+static uint32_t lvgl_tick() {
+    return millis();
+}
+
 static void display_init() {
     lv_init();
-    // Panel-specific: create the display for the board's LCD, then a canvas
-    // covering it. Everything above this line is portable; this is not.
-    display = lv_display_get_default();
-    if(display == nullptr) {
-        Serial.println("no LVGL display — add the board's driver here");
-        return;
-    }
-    const int32_t w = lv_display_get_horizontal_resolution(display);
-    const int32_t h = lv_display_get_vertical_resolution(display);
-    draw_buf = lv_draw_buf_create(w, h, LV_COLOR_FORMAT_ARGB8888, 0);
+    lv_tick_set_cb(lvgl_tick);
+
+    board_backlight_on();
+    gfx->begin();
+    gfx->fillScreen(BLACK);
+
+    display = lv_display_create(PANEL_WIDTH, PANEL_HEIGHT);
+    lv_display_set_color_format(display, LV_COLOR_FORMAT_RGB565);
+    lv_display_set_flush_cb(display, flush_cb);
+
+    // A partial buffer (40 lines) rather than a full frame: the full frame
+    // lives in the mementum canvas below, already in PSRAM.
+    static lv_color16_t flush_buf[PANEL_WIDTH * 40];
+    lv_display_set_buffers(display, flush_buf, NULL, sizeof(flush_buf),
+                            LV_DISPLAY_RENDER_MODE_PARTIAL);
+
+    draw_buf = lv_draw_buf_create(PANEL_WIDTH, PANEL_HEIGHT,
+                                   LV_COLOR_FORMAT_ARGB8888, 0);
     canvas = lv_canvas_create(lv_display_get_screen_active(display));
     lv_canvas_set_draw_buf(canvas, draw_buf);
 }
 
 // ---- the loop that matters -------------------------------------------------
+
+static int drawn_scene_id = -1;
+static float drawn_scene_time = -1.0f;
+
+// A frame is a pure function of (scene, scene time), so a frame already on
+// the glass never needs drawing again -- and once every animation has ended,
+// no later time looks any different. Without this the whole canvas crossed
+// the panel bus every loop, for a picture that had stopped changing.
+static bool needs_draw(float scene_time) {
+    if(drawn_scene_id != loaded_scene_id) return true;
+    const float end = scene.duration_ms;
+    if(scene_time >= end && drawn_scene_time >= end) return false;
+    return scene_time != drawn_scene_time;
+}
+
+static void render_at(float scene_time) {
+    mm_evaluate(&scene, scene_time);
+    lv_canvas_fill_bg(canvas, lv_color_hex(0x000000), LV_OPA_COVER);
+    lv_layer_t layer;
+    lv_canvas_init_layer(canvas, &layer);
+    mm_render_scene(&layer, &scene, PANEL_WIDTH, PANEL_HEIGHT, nullptr, 0, scene_time);
+    lv_canvas_finish_layer(canvas, &layer);
+    lv_obj_invalidate(canvas);
+    drawn_scene_id = loaded_scene_id;
+    drawn_scene_time = scene_time;
+}
+
+#if MM_STANDALONE
+
+static uint32_t standalone_started_ms = 0;
+
+static void standalone_begin() {
+    char error[128] = "";
+    if(!mm_scene_from_json(MM_EMBEDDED_SCENE, &scene, error, sizeof(error))) {
+        Serial.printf("embedded scene refused: %s\n", error);
+        return;
+    }
+    loaded_scene_id = 1;
+    scene_ready = true;
+    standalone_started_ms = millis();
+    Serial.printf("embedded scene ready: %d objects, %.1fs\n",
+                  scene.object_count, scene.duration_ms / 1000.0);
+}
+
+static void standalone_draw() {
+    if(!scene_ready) return;
+    float scene_time = (float)(millis() - standalone_started_ms);
+#if MM_STANDALONE_LOOP
+    if(scene.duration_ms > 0.0f) scene_time = fmod(scene_time, scene.duration_ms);
+#endif
+    if(needs_draw(scene_time)) render_at(scene_time);
+}
+
+#else
 
 static void load_if_needed() {
     if(!mm_current.active || mm_current.scene_id == 0) return;
@@ -106,15 +206,10 @@ static void draw() {
     // at? Nothing accumulates, so a dropped frame costs nothing and two panels
     // on one clock agree without ever talking to each other.
     const float scene_time = (float)mm_schedule_time(&mm_current, now);
-
-    mm_evaluate(&scene, scene_time);
-    lv_canvas_fill_bg(canvas, lv_color_hex(0x000000), LV_OPA_COVER);
-    lv_layer_t layer;
-    lv_canvas_init_layer(canvas, &layer);
-    mm_render_scene(&layer, &scene, CONFIG.width, CONFIG.height, nullptr, 0, scene_time);
-    lv_canvas_finish_layer(canvas, &layer);
-    lv_obj_invalidate(canvas);
+    if(needs_draw(scene_time)) render_at(scene_time);
 }
+
+#endif /* MM_STANDALONE */
 
 void setup() {
     Serial.begin(115200);
@@ -122,15 +217,23 @@ void setup() {
     Serial.println("mementum panel");
 
     display_init();
+#if MM_STANDALONE
+    standalone_begin();
+#else
     if(!mm_net_begin(CONFIG)) {
         Serial.println("running unregistered — will keep trying");
     }
+#endif
 }
 
 void loop() {
+#if MM_STANDALONE
+    standalone_draw();  // evaluate and render at the local clock
+#else
     mm_net_loop();      // pushes, heartbeats, clock
     load_if_needed();   // fetch and parse a scene, once
     draw();             // evaluate and render at the shared clock
+#endif
     lv_timer_handler();
     delay(5);
 }

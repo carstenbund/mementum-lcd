@@ -52,9 +52,15 @@
 #define LV_USE_CANVAS               1
 #define LV_USE_LABEL                1
 
-/* One font. Text on a panel comes from the composer as strokes; this is for
- * diagnostics on the glass, not for content. */
+/* The host's five sizes. drm_composer sends <text> as scene text objects
+ * (font_id "montserrat-<size>"), and render_lvgl.c's font_for() falls back to
+ * 14 for any size configured out -- so with one font every label on the panel
+ * was 14 px, whatever the screen-HTML asked for. */
 #define LV_FONT_MONTSERRAT_14       1
+#define LV_FONT_MONTSERRAT_16       1
+#define LV_FONT_MONTSERRAT_20       1
+#define LV_FONT_MONTSERRAT_24       1
+#define LV_FONT_MONTSERRAT_28       1
 
 #define LV_USE_LOG                  1
 #define LV_LOG_LEVEL                LV_LOG_LEVEL_WARN

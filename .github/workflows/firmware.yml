@@ -99,6 +99,12 @@ jobs:
           arduino-cli core update-index
           arduino-cli core install esp32:esp32
 
+      - name: Install GFX Library for Arduino, the panel driver
+        # Every board header includes Arduino_GFX_Library.h: it owns the bus and
+        # the controller chip, and LVGL's flush callback hands it the pixels.
+        # 1.6.0, not latest: 1.6.1 is reported broken on the AXS15231B.
+        run: arduino-cli lib install "GFX Library for Arduino@1.6.0"
+
       - name: Offer LVGL as a library — the vendored one, not the registry's
         # Same rule as the IDF job: the device compiles the checkout the host
         # suite was measured against, patches included. lv_conf.h goes beside
