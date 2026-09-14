@@ -93,3 +93,37 @@ def test_the_composer_and_this_project_s_own_tools_agree_on_the_format(placed):
 
     assert scene.width, scene.height == (WIDTH, HEIGHT)
     assert [obj.id for layer in scene.layers for obj in layer.objects] == ["rule"]
+
+
+def test_boxes_and_text_reach_the_device_player_as_primitives():
+    """A whole screen -- boxes, text and a path -- as the one document the
+    ESP32 loads. The boxes arrive as `rect`, filled in their own colour and
+    blended at their alpha, with no bitmap anywhere on the way."""
+    if not hasattr(drm_composer, "emit_screen_json"):
+        pytest.skip("drm_composer predates whole-screen documents")
+
+    screen = f"""
+    <screen width="{WIDTH}" height="{HEIGHT}">
+      <layer id="bg" z="0"><box x="0" y="0" w="{WIDTH}" h="{HEIGHT}" color="#101826" /></layer>
+      <layer id="shapes" z="10">
+        <box x="10" y="10" w="100" h="40" color="#2e7d32" />
+        <box x="130" y="10" w="100" h="40" color="#c62828cc" />
+        <text x="16" y="70" size="14" color="#ffffff">du kannst</text>
+      </layer>
+    </screen>
+    """
+    payload = drm_composer.emit_screen_json(drm_composer.parse_scene(screen))
+    player = LvglPlayer()
+    player.bind(payload, None, WIDTH, HEIGHT)
+    frame = player.render(0.0)
+
+    def pixel(x, y):
+        i = (y * WIDTH + x) * 4
+        return tuple(frame.data[i:i + 3])
+
+    assert pixel(200, 110) == (0x10, 0x18, 0x26)
+    assert pixel(50, 30) == (0x2e, 0x7d, 0x32)
+    # 0xcc over the background: 0.8 * red + 0.2 * #101826
+    assert pixel(180, 30) == pytest.approx((161, 36, 39), abs=2)
+    text_ink = sum(1 for x in range(16, 110) for y in range(66, 90) if max(pixel(x, y)) > 150)
+    assert text_ink > 50, "the label must be drawn"
