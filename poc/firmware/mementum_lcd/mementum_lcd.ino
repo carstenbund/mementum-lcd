@@ -105,7 +105,7 @@ static void display_init() {
 
     board_backlight_on();
     gfx->begin();
-    gfx->fillScreen(BLACK);
+    gfx->fillScreen(0x0000);   // RGB565 black; GFX 1.6.x no longer defines BLACK
 
     display = lv_display_create(PANEL_WIDTH, PANEL_HEIGHT);
     lv_display_set_color_format(display, LV_COLOR_FORMAT_RGB565);
